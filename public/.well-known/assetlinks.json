@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.rkpu_viewer.twa",
+        "sha256_cert_fingerprints": ["D0:61:E4:16:59:20:FF:2F:D4:4F:19:3B:7C:1D:68:48:25:83:B1:E5:53:CB:8B:FE:8F:C3:03:87:1F:38:33:A9"]
+      }
+    }]
