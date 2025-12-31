@@ -2,13 +2,11 @@ package com.allofdaniel.rkpuviewer;
 
 import android.os.Bundle;
 import android.view.View;
-import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
 import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -17,7 +15,7 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Enable hardware acceleration
+        // Enable hardware acceleration for the window
         getWindow().setFlags(
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
@@ -30,17 +28,14 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().post(() -> {
             WebView webView = getBridge().getWebView();
             if (webView != null) {
-                // Enable hardware acceleration for WebView
+                // Enable hardware acceleration for WebView layer
                 webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
                 WebSettings settings = webView.getSettings();
                 settings.setJavaScriptEnabled(true);
                 settings.setDomStorageEnabled(true);
 
-                // Enable hardware acceleration for canvas/WebGL
-                settings.setHardwareAccelerationEnabled(true);
-
-                // Enable WebGL
+                // Enable file access for WebGL
                 settings.setAllowFileAccess(true);
                 settings.setAllowContentAccess(true);
                 settings.setMediaPlaybackRequiresUserGesture(false);
