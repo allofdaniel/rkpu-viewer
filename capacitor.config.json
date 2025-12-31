@@ -6,6 +6,18 @@
     "androidScheme": "https"
   },
   "android": {
-    "allowMixedContent": true
+    "allowMixedContent": true,
+    "backgroundColor": "#000000",
+    "useLegacyBridge": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "Keyboard": {
+      "resize": "none"
+    },
+    "StatusBar": {
+      "style": "dark",
+      "backgroundColor": "#000000"
+    }
   }
 }
