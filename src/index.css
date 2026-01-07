@@ -4809,23 +4809,28 @@ html, body, #root {
     max-width: 100%;
     border-radius: 0 0 12px 12px;
   }
-  
+
   .control-panel.open {
     max-height: 70vh;
   }
-  
+
   .aircraft-panel {
     width: 100%;
     right: 0 !important;
     border-radius: 12px 12px 0 0;
     top: auto !important;
-    bottom: 0;
-    height: 70vh !important;
-    max-height: 70vh !important;
+    bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(70vh - env(safe-area-inset-bottom, 0px)) !important;
+    max-height: calc(70vh - env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  
+
   .aircraft-panel.open {
     right: 0 !important;
+  }
+
+  .aircraft-panel-content {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
 
