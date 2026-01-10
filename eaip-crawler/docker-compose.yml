@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  eaip-crawler:
+    build: .
+    container_name: eaip-crawler
+    restart: unless-stopped
+    environment:
+      - DB_PATH=/data/eaip_korea.db
+      - EXPORT_PATH=/export/korea_airspace.json
+      - S3_BUCKET=notam-korea-data
+      - S3_KEY=eaip/korea_airspace.json
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=ap-northeast-2
+      - TZ=Asia/Seoul
+      - DAEMON_MODE=true
+    volumes:
+      - eaip-data:/data
+      - eaip-export:/export
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  eaip-data:
+    driver: local
+  eaip-export:
+    driver: local

@@ -1,0 +1,404 @@
+{
+  "TMA": [
+    {
+      "id": "t01_seoul",
+      "name": "T01 - Seoul TMA",
+      "call_sign": "Seoul Approach",
+      "vertical_limits": "FL 185 / 1,000 ft AGL",
+      "airspace_class": "B, D, E",
+      "frequencies": ["119.05", "119.10", "119.75", "124.70"],
+      "color": "#DDA0DD",
+      "coordinates": [
+        [125.5481, 37.3528], [126.1647, 37.6528], [126.6811, 37.7194],
+        [126.8811, 37.6361], [127.6644, 37.9694], [127.6644, 37.2719],
+        [127.3978, 37.2528], [127.3144, 37.3028], [127.1478, 37.3028],
+        [126.9644, 37.3528], [126.8039, 37.3403], [126.6103, 37.1486],
+        [126.5286, 37.1397], [126.3661, 37.0994], [125.8025, 37.0881],
+        [125.7981, 37.2694], [125.5481, 37.3528]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 18500
+    },
+    {
+      "id": "t02_seoul",
+      "name": "T02 - Seoul TMA",
+      "call_sign": "Seoul Approach",
+      "vertical_limits": "FL 185 / FL 175",
+      "airspace_class": "D",
+      "frequencies": ["119.05", "119.10"],
+      "color": "#D8BFD8",
+      "coordinates": [
+        [127.6644, 37.9694], [127.9128, 38.0028], [127.9128, 37.1694],
+        [127.7653, 37.1694], [127.6644, 37.1111], [127.6644, 37.9694]
+      ],
+      "floor_ft": 17500,
+      "ceiling_ft": 18500
+    },
+    {
+      "id": "t03_seoul",
+      "name": "T03 - Seoul TMA",
+      "call_sign": "Seoul Approach",
+      "vertical_limits": "FL 185 / 4,500 ft AMSL",
+      "airspace_class": "B, D, E",
+      "frequencies": ["119.05", "119.10"],
+      "color": "#C8A2C8",
+      "coordinates": [
+        [126.8039, 37.3403], [126.9644, 37.3528], [127.1478, 37.3028],
+        [127.3144, 37.3028], [127.3978, 37.2528], [127.1108, 37.2528],
+        [126.7261, 37.1594], [126.6103, 37.1011], [126.8039, 37.3403]
+      ],
+      "floor_ft": 4500,
+      "ceiling_ft": 18500
+    },
+    {
+      "id": "t04_seoul",
+      "name": "T04 - Seoul TMA",
+      "call_sign": "Seoul Approach",
+      "vertical_limits": "FL 185 / 6,500 ft AMSL",
+      "airspace_class": "D, E",
+      "frequencies": ["119.05", "119.10"],
+      "color": "#BA8EB8",
+      "coordinates": [
+        [125.8025, 37.0881], [126.3661, 37.0994], [126.5286, 37.0953],
+        [126.7261, 37.1594], [127.0086, 37.2261], [127.0419, 37.0886],
+        [126.4811, 36.9694], [126.2764, 37.0139], [125.8064, 36.9528],
+        [125.8025, 37.0881]
+      ],
+      "floor_ft": 6500,
+      "ceiling_ft": 18500
+    },
+    {
+      "id": "t05_seoul",
+      "name": "T05 - Seoul TMA",
+      "call_sign": "Seoul Approach",
+      "vertical_limits": "FL 185 / 7,500 ft AMSL",
+      "airspace_class": "D, E",
+      "frequencies": ["119.05", "119.10"],
+      "color": "#AA7AA8",
+      "coordinates": [
+        [126.9936, 37.2258], [127.1108, 37.2528], [127.3978, 37.2528],
+        [127.6644, 37.2719], [127.0419, 37.1775], [127.0086, 37.0886],
+        [126.9936, 37.2258]
+      ],
+      "floor_ft": 7500,
+      "ceiling_ft": 18500
+    },
+    {
+      "id": "t06_seoul",
+      "name": "T06 - Seoul TMA",
+      "call_sign": "Seoul Approach",
+      "vertical_limits": "FL 185 / 9,500 ft AMSL",
+      "airspace_class": "D, E",
+      "frequencies": ["119.05", "119.10"],
+      "color": "#9A6A98",
+      "coordinates": [
+        [126.4811, 36.9694], [127.0419, 37.0886], [127.6644, 37.1775],
+        [127.0419, 36.8794], [126.5844, 36.8794], [126.4811, 36.9694]
+      ],
+      "floor_ft": 9500,
+      "ceiling_ft": 18500
+    },
+    {
+      "id": "t07_seoul",
+      "name": "T07 - Seoul TMA",
+      "call_sign": "Seoul Approach",
+      "vertical_limits": "FL 185 / 11,500 ft AMSL",
+      "airspace_class": "D",
+      "frequencies": ["119.05", "119.10"],
+      "color": "#8A5A88",
+      "coordinates": [
+        [126.5844, 36.8794], [127.0419, 36.8794], [127.0350, 37.0417],
+        [126.6644, 37.0350], [126.7703, 36.7703], [126.5844, 36.8794]
+      ],
+      "floor_ft": 11500,
+      "ceiling_ft": 18500
+    },
+    {
+      "id": "t08_seoul",
+      "name": "T08 - Seoul TMA",
+      "call_sign": "Seoul Approach",
+      "vertical_limits": "FL 185 / 11,500 ft AMSL",
+      "airspace_class": "D",
+      "frequencies": ["119.05", "119.10"],
+      "color": "#7A4A78",
+      "coordinates": [
+        [126.4314, 36.9847], [126.4811, 36.9694], [126.5844, 36.8794],
+        [126.4661, 36.8658], [126.4314, 36.9847]
+      ],
+      "floor_ft": 11500,
+      "ceiling_ft": 18500
+    },
+    {
+      "id": "t09_seoul",
+      "name": "T09 - Seoul TMA",
+      "call_sign": "Seoul Approach",
+      "vertical_limits": "FL 185 / FL 145",
+      "airspace_class": "D",
+      "frequencies": ["119.05", "119.10"],
+      "color": "#6A3A68",
+      "coordinates": [
+        [126.0103, 36.9808], [126.2764, 37.0139], [126.4314, 36.9847],
+        [126.4661, 36.8658], [126.5844, 36.8794], [126.7703, 36.7703],
+        [126.0103, 36.9808]
+      ],
+      "floor_ft": 14500,
+      "ceiling_ft": 18500
+    },
+    {
+      "id": "t11_osan",
+      "name": "T11 - Osan TMA",
+      "call_sign": "Osan Approach",
+      "vertical_limits": "6,500 ft / 1,000 ft AGL",
+      "airspace_class": "D, E",
+      "frequencies": ["127.90", "363.10"],
+      "operator": "USAF",
+      "color": "#E74C3C",
+      "coordinates": [
+        [125.8025, 37.0881], [126.3661, 37.0994], [126.5286, 37.0953],
+        [126.5286, 37.1397], [126.7261, 37.1594], [127.0419, 37.2261],
+        [127.0086, 37.0886], [126.9908, 36.9897], [126.2764, 37.0139],
+        [125.8064, 36.9528], [125.8025, 37.0881]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 6500
+    },
+    {
+      "id": "t18_jungwon",
+      "name": "T18 - Jungwon TMA",
+      "call_sign": "Jungwon Approach",
+      "vertical_limits": "FL 175 / 1,000 ft AGL",
+      "airspace_class": "C, E",
+      "frequencies": ["132.55", "306.70"],
+      "color": "#EB984E",
+      "coordinates": [
+        [127.6644, 37.1111], [127.8478, 37.1194], [127.9128, 37.1694],
+        [128.0586, 37.2344], [128.3256, 37.5194], [128.6061, 37.5519],
+        [128.6811, 37.1194], [128.1586, 36.8361], [127.6644, 37.1111]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 17500
+    },
+    {
+      "id": "t23_jeju",
+      "name": "T23 - Jeju TMA",
+      "call_sign": "Jeju Approach",
+      "vertical_limits": "FL 165 / 1,000 ft AGL",
+      "airspace_class": "B, D, E",
+      "frequencies": ["120.425", "121.20", "124.05"],
+      "color": "#FFB347",
+      "coordinates": [
+        [125.9981, 33.0033], [125.9981, 34.2531], [127.3314, 34.2536],
+        [127.3314, 33.2700], [126.9981, 33.0033], [125.9981, 33.0033]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 16500
+    },
+    {
+      "id": "t24_gangneung",
+      "name": "T24 - Gangneung TMA",
+      "call_sign": "Gangneung Approach",
+      "vertical_limits": "FL 225 / 1,000 ft AGL",
+      "airspace_class": "C, D, E",
+      "frequencies": ["124.60", "304.00"],
+      "color": "#BB8FCE",
+      "coordinates": [
+        [128.5311, 38.1361], [128.5978, 38.2028], [129.8475, 38.2028],
+        [129.8475, 37.1194], [128.6811, 37.1194], [128.5086, 38.0811],
+        [128.5311, 38.1361]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 22500
+    },
+    {
+      "id": "t26_gimhae",
+      "name": "T26 - Gimhae TMA",
+      "call_sign": "Gimhae Approach",
+      "vertical_limits": "FL 225 / 1,000 ft AGL",
+      "airspace_class": "C, D, E",
+      "frequencies": ["119.20", "125.50", "134.40"],
+      "color": "#87CEEB",
+      "coordinates": [
+        [128.4922, 35.5031], [128.5611, 35.4797], [128.7739, 35.5072],
+        [129.0256, 35.5031], [129.0894, 35.4197], [129.8256, 35.4197],
+        [129.7978, 35.2369], [128.8589, 34.5031], [128.4922, 34.5031],
+        [128.4922, 35.5031]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 22500
+    },
+    {
+      "id": "t27_gunsan",
+      "name": "T27 - Gunsan TMA",
+      "call_sign": "Gunsan Approach",
+      "vertical_limits": "FL 225 / 1,000 ft AGL",
+      "airspace_class": "C, E",
+      "frequencies": ["124.10", "292.65"],
+      "color": "#85C1E9",
+      "coordinates": [
+        [126.5314, 36.3864], [125.8147, 36.3858], [125.8258, 35.5031],
+        [126.4978, 35.5031], [126.6097, 35.9131], [126.5314, 36.3864]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 22500
+    },
+    {
+      "id": "t29_gwangju",
+      "name": "T29 - Gwangju TMA",
+      "call_sign": "Gwangju Approach",
+      "vertical_limits": "FL 225 / 1,000 ft AGL",
+      "airspace_class": "C, D, E",
+      "frequencies": ["130.00", "228.90"],
+      "color": "#98D8C8",
+      "coordinates": [
+        [125.8258, 35.5031], [126.8258, 35.5031], [127.1597, 35.7531],
+        [127.6108, 35.7531], [127.8258, 35.5031], [126.9919, 34.2531],
+        [125.8258, 34.2531], [125.8258, 35.5031]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 22500
+    },
+    {
+      "id": "t31_sacheon",
+      "name": "T31 - Sacheon TMA",
+      "call_sign": "Sacheon Approach",
+      "vertical_limits": "FL 195 / 1,000 ft AGL",
+      "airspace_class": "C, D, E",
+      "frequencies": ["135.40", "344.70"],
+      "color": "#F8B500",
+      "coordinates": [
+        [127.8258, 35.5031], [128.4922, 35.5031], [128.4922, 34.2533],
+        [126.9919, 34.2531], [127.8258, 35.5031]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 19500
+    },
+    {
+      "id": "t32_pohang",
+      "name": "T32 - Pohang TMA",
+      "call_sign": "Pohang Approach",
+      "vertical_limits": "10,500 ft / 1,000 ft AGL",
+      "airspace_class": "C, E",
+      "frequencies": ["120.20", "232.40", "124.25"],
+      "color": "#58D68D",
+      "coordinates": [
+        [128.6644, 36.3364], [129.8478, 36.3364], [129.8256, 35.8364],
+        [129.2500, 36.0000], [129.0833, 36.1000], [128.6644, 36.3364]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 10500
+    },
+    {
+      "id": "t35_daegu",
+      "name": "T35 - Daegu TMA",
+      "call_sign": "Daegu Approach",
+      "vertical_limits": "FL 225 / 1,000 ft AGL",
+      "airspace_class": "C, E",
+      "frequencies": ["135.90", "346.30"],
+      "color": "#F7DC6F",
+      "coordinates": [
+        [128.1586, 36.4864], [128.3928, 36.4864], [128.6644, 36.3364],
+        [129.0833, 36.1000], [129.0739, 35.9036], [129.1667, 35.8167],
+        [129.1589, 35.4197], [129.0894, 35.4197], [129.0256, 35.5031],
+        [128.7739, 35.5072], [128.5611, 35.4797], [128.4922, 35.5031],
+        [127.8258, 35.5031], [127.6108, 35.7531], [127.2033, 36.2033],
+        [127.1644, 36.4978], [128.1586, 36.4864]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 22500
+    },
+    {
+      "id": "t36_yecheon",
+      "name": "T36 - Yecheon TMA",
+      "call_sign": "Yecheon Approach",
+      "vertical_limits": "FL 225 / 1,000 ft AGL",
+      "airspace_class": "C, E",
+      "frequencies": ["134.50", "229.35"],
+      "color": "#AF7AC5",
+      "coordinates": [
+        [128.6811, 37.1194], [129.2678, 37.1194], [129.4353, 36.9353],
+        [129.4353, 36.3364], [128.6644, 36.3364], [128.3928, 36.4864],
+        [128.1586, 36.4864], [128.2958, 36.7669], [128.4628, 36.8028],
+        [128.6811, 37.1194]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 22500
+    },
+    {
+      "id": "t37_haemi",
+      "name": "T37 - Haemi TMA",
+      "call_sign": "Haemi Approach",
+      "vertical_limits": "FL 145 / 1,000 ft AGL",
+      "airspace_class": "C, E",
+      "frequencies": ["124.60", "229.25"],
+      "color": "#5DADE2",
+      "coordinates": [
+        [125.8064, 36.9478], [126.2764, 37.0139], [126.4314, 36.9847],
+        [126.5844, 36.8794], [126.5903, 36.5914], [126.5147, 36.3858],
+        [125.8147, 36.3858], [125.8064, 36.9478]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 14500
+    },
+    {
+      "id": "t40_wonju",
+      "name": "T40 - Wonju TMA",
+      "call_sign": "Wonju Approach",
+      "vertical_limits": "FL 175 / 3,600 ft AGL",
+      "airspace_class": "E",
+      "frequencies": ["135.725", "234.40"],
+      "color": "#42B9A0",
+      "coordinates": [
+        [127.6644, 37.1111], [127.7653, 37.1261], [127.9128, 37.0917],
+        [127.8478, 37.0808], [127.6644, 37.1111]
+      ],
+      "floor_ft": 3600,
+      "ceiling_ft": 17500
+    },
+    {
+      "id": "t41_wonju",
+      "name": "T41 - Wonju TMA",
+      "call_sign": "Wonju Approach",
+      "vertical_limits": "FL 175 / 1,000 ft AGL",
+      "airspace_class": "C, D, E",
+      "frequencies": ["135.725", "234.40"],
+      "color": "#52C9B0",
+      "coordinates": [
+        [127.9128, 38.0028], [128.5086, 38.0811], [128.6061, 37.9519],
+        [128.3256, 37.5194], [128.0586, 37.2344], [127.9128, 37.1694],
+        [127.9128, 38.0028]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 17500
+    },
+    {
+      "id": "t42_pohang",
+      "name": "T42 - Pohang/Yecheon TMA",
+      "call_sign": "Pohang Approach",
+      "vertical_limits": "9,500 ft / 1,000 ft AGL",
+      "airspace_class": "C, D, E",
+      "frequencies": ["120.20", "232.40"],
+      "color": "#28A66D",
+      "coordinates": [
+        [129.2678, 37.1194], [129.8475, 37.1194], [129.8475, 36.3364],
+        [129.4353, 36.4353], [129.4353, 36.9353], [129.2678, 37.1194]
+      ],
+      "floor_ft": 1000,
+      "ceiling_ft": 9500
+    },
+    {
+      "id": "t43_jeju",
+      "name": "T43 - Jeju TMA",
+      "call_sign": "Jeju Approach",
+      "vertical_limits": "FL 165 / 6,000 ft AMSL",
+      "airspace_class": "E",
+      "frequencies": ["120.425", "121.20"],
+      "color": "#FFA337",
+      "coordinates": [
+        [125.8258, 33.0033], [125.8258, 34.2531], [125.9981, 34.2531],
+        [125.9981, 33.0033], [125.8258, 33.0033]
+      ],
+      "floor_ft": 6000,
+      "ceiling_ft": 16500
+    }
+  ]
+}
