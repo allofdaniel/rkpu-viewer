@@ -24,7 +24,7 @@ public class MainActivity extends BridgeActivity {
             WebView webView = getBridge().getWebView();
             if (webView != null) {
                 webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-                webView.setInitialScale(100);
+                // Removed setInitialScale(100) - let WebView auto-scale for full screen
 
                 WebSettings settings = webView.getSettings();
                 settings.setJavaScriptEnabled(true);
@@ -32,8 +32,8 @@ public class MainActivity extends BridgeActivity {
                 settings.setAllowFileAccess(true);
                 settings.setAllowContentAccess(true);
                 settings.setMediaPlaybackRequiresUserGesture(false);
-                settings.setUseWideViewPort(true);
-                settings.setLoadWithOverviewMode(true);
+                settings.setUseWideViewPort(false);
+                settings.setLoadWithOverviewMode(false);
                 settings.setSupportZoom(false);
                 settings.setBuiltInZoomControls(false);
                 settings.setDisplayZoomControls(false);

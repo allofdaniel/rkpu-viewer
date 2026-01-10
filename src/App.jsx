@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 mapboxgl.accessToken = 'pk.eyJ1IjoiYWxsb2ZkYW5pZWwiLCJhIjoiY21pbzY5ejhkMDJvZzNjczVwMmlhYTljaiJ9.eSoww-z9bQuolQ4fQHqZOg';
 
 const IS_PRODUCTION = import.meta.env.PROD;
-const AIRCRAFT_UPDATE_INTERVAL = 2000;
+const AIRCRAFT_UPDATE_INTERVAL = 5000; // 5초 간격 (rate limit 방지)
 
 // NOTAM Cache settings - 메모리 캐시 사용 (localStorage는 용량 초과로 실패)
 const NOTAM_CACHE_DURATION = 10 * 60 * 1000; // 10분 캐시 유지
@@ -345,14 +345,15 @@ const TRAIL_DURATION_OPTIONS = [
   { label: '1시간', value: 3600000 },
 ];
 
+// Vercel API base URL - 앱과 웹 모두에서 동작하도록 절대 URL 사용
+const API_BASE_URL = 'https://rkpu-viewer.vercel.app';
+
 const getAircraftApiUrl = (lat, lon, radius = 100) => {
-  if (IS_PRODUCTION) return `/api/aircraft?lat=${lat}&lon=${lon}&radius=${radius}`;
-  return `https://api.airplanes.live/v2/point/${lat}/${lon}/${radius}`;
+  return `${API_BASE_URL}/api/aircraft?lat=${lat}&lon=${lon}&radius=${radius}`;
 };
 
 const getAircraftTraceUrl = (hex) => {
-  if (IS_PRODUCTION) return `/api/aircraft-trace?hex=${hex}`;
-  return `https://api.airplanes.live/v2/hex/${hex}`;
+  return `${API_BASE_URL}/api/aircraft-trace?hex=${hex}`;
 };
 
 const generateColor = (index, total, hueOffset = 0) => `hsl(${(index * (360 / Math.max(total, 1)) + hueOffset) % 360}, 80%, 55%)`;
@@ -1098,8 +1099,8 @@ function App() {
       // Use proxy API to avoid CORS issues with KMA API
       // Add cache buster to ensure fresh data from KMA AMOS
       const cacheBuster = `&_t=${Date.now()}`;
-      const metarUrl = IS_PRODUCTION ? `/api/weather?type=metar${cacheBuster}` : `https://rkpu-viewer.vercel.app/api/weather?type=metar${cacheBuster}`;
-      const tafUrl = IS_PRODUCTION ? `/api/weather?type=taf${cacheBuster}` : `https://rkpu-viewer.vercel.app/api/weather?type=taf${cacheBuster}`;
+      const metarUrl = `${API_BASE_URL}/api/weather?type=metar${cacheBuster}`;
+      const tafUrl = `${API_BASE_URL}/api/weather?type=taf${cacheBuster}`;
 
       const [metarRes, tafRes] = await Promise.all([
         fetch(metarUrl),
@@ -1139,8 +1140,7 @@ function App() {
     setNotamLoading(true);
     setNotamError(null);
     try {
-      // Use production URL in development, local API in production
-      const baseUrl = IS_PRODUCTION ? '/api/notam' : 'https://rkpu-viewer.vercel.app/api/notam';
+      const baseUrl = `${API_BASE_URL}/api/notam`;
       const params = new URLSearchParams();
 
       // Always use complete DB with appropriate period filter
@@ -1194,7 +1194,7 @@ function App() {
 
   // Fetch aviation weather layers when toggled
   useEffect(() => {
-    const baseUrl = IS_PRODUCTION ? '/api/weather' : 'https://rkpu-viewer.vercel.app/api/weather';
+    const baseUrl = `${API_BASE_URL}/api/weather`;
 
     if (showRadar) {
       fetch(`${baseUrl}?type=radar`).then(r => r.json()).then(setRadarData).catch(console.error);
@@ -1206,7 +1206,7 @@ function App() {
   }, [showRadar]);
 
   useEffect(() => {
-    const baseUrl = IS_PRODUCTION ? '/api/weather' : 'https://rkpu-viewer.vercel.app/api/weather';
+    const baseUrl = `${API_BASE_URL}/api/weather`;
 
     if (showSatelliteWx) {
       fetch(`${baseUrl}?type=satellite`).then(r => r.json()).then(setSatelliteWxData).catch(console.error);
@@ -1214,7 +1214,7 @@ function App() {
   }, [showSatelliteWx]);
 
   useEffect(() => {
-    const baseUrl = IS_PRODUCTION ? '/api/weather' : 'https://rkpu-viewer.vercel.app/api/weather';
+    const baseUrl = `${API_BASE_URL}/api/weather`;
 
     if (showLightning) {
       fetch(`${baseUrl}?type=lightning`).then(r => r.json()).then(setLightningData).catch(console.error);
@@ -1226,7 +1226,7 @@ function App() {
   }, [showLightning]);
 
   useEffect(() => {
-    const baseUrl = IS_PRODUCTION ? '/api/weather' : 'https://rkpu-viewer.vercel.app/api/weather';
+    const baseUrl = `${API_BASE_URL}/api/weather`;
 
     if (showSigmet || showWxPanel) {
       fetch(`${baseUrl}?type=sigmet`).then(r => r.json()).then(setSigmetData).catch(console.error);
@@ -1456,10 +1456,44 @@ function App() {
       ctx.fill();
       map.current.addImage('trail-arrow', ctx.getImageData(0, 0, arrowSize, arrowSize), { sdf: true });
 
+      // Force resize for Android WebView compatibility
+      map.current.resize();
+      // Additional delayed resize for WebView container size stabilization
+      setTimeout(() => {
+        if (map.current) map.current.resize();
+      }, 100);
+      setTimeout(() => {
+        if (map.current) map.current.resize();
+      }, 500);
+      setTimeout(() => {
+        if (map.current) map.current.resize();
+      }, 1000);
+      setTimeout(() => {
+        if (map.current) map.current.resize();
+      }, 2000);
+
       setMapLoaded(true);
     });
 
-    return () => { if (map.current) { map.current.remove(); map.current = null; } };
+    // Window resize handler for WebView compatibility
+    const handleResize = () => {
+      if (map.current) map.current.resize();
+    };
+    window.addEventListener('resize', handleResize);
+
+    // ResizeObserver for container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      if (map.current) map.current.resize();
+    });
+    if (mapContainer.current) {
+      resizeObserver.observe(mapContainer.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
+      if (map.current) { map.current.remove(); map.current = null; }
+    };
   }, []);
 
   // Handle terrain toggle
@@ -2747,14 +2781,15 @@ function App() {
 
         if (extendedTrail.length < 2) return;
 
-        // 세그먼트별로 opacity 계산하여 리본 생성 (오래된 것 = 연하게)
-        // 점선 효과: 2개 그리고 1개 건너뛰기
+        // 연속 항적 - 모든 세그먼트를 끊김 없이 표시
         for (let i = 0; i < extendedTrail.length - 1; i++) {
-          // 점선 효과 - 매 3번째 세그먼트 건너뛰기
-          if (i % 3 === 2) continue;
-
           const p1 = extendedTrail[i];
           const p2 = extendedTrail[i + 1];
+
+          // 두 점 사이 거리가 너무 멀면 (비정상 점프) 건너뛰기
+          const dist = Math.sqrt(Math.pow(p2.lon - p1.lon, 2) + Math.pow(p2.lat - p1.lat, 2));
+          if (dist > 0.1) continue; // 약 10km 이상 점프는 무시
+
           // 세그먼트의 중간 시간으로 opacity 계산
           const segTime = (p1.timestamp + p2.timestamp) / 2;
           const age = now - segTime;
