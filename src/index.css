@@ -7,6 +7,8 @@
 html, body, #root {
   width: 100%;
   height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow: hidden;
 }
@@ -14,12 +16,21 @@ html, body, #root {
 .app-container {
   width: 100%;
   height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
 }
 
 #map {
   width: 100%;
   height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .control-panel {

@@ -9,7 +9,7 @@
     "allowMixedContent": true,
     "backgroundColor": "#000000",
     "useLegacyBridge": false,
-    "webContentsDebuggingEnabled": false
+    "webContentsDebuggingEnabled": true
   },
   "plugins": {
     "Keyboard": {

@@ -1457,20 +1457,33 @@ function App() {
       map.current.addImage('trail-arrow', ctx.getImageData(0, 0, arrowSize, arrowSize), { sdf: true });
 
       // Force resize for Android WebView compatibility
-      map.current.resize();
-      // Additional delayed resize for WebView container size stabilization
-      setTimeout(() => {
-        if (map.current) map.current.resize();
-      }, 100);
-      setTimeout(() => {
-        if (map.current) map.current.resize();
-      }, 500);
-      setTimeout(() => {
+      // WebView often has delayed container sizing, so we need aggressive resize calls
+      const doResize = () => {
+        if (map.current) {
+          map.current.resize();
+          // Also trigger a re-render by slightly adjusting and restoring center
+          const center = map.current.getCenter();
+          map.current.setCenter([center.lng + 0.0001, center.lat]);
+          setTimeout(() => {
+            if (map.current) map.current.setCenter(center);
+          }, 50);
+        }
+      };
+
+      doResize();
+      setTimeout(doResize, 100);
+      setTimeout(doResize, 300);
+      setTimeout(doResize, 500);
+      setTimeout(doResize, 1000);
+      setTimeout(doResize, 2000);
+      setTimeout(doResize, 3000);
+      setTimeout(doResize, 5000);
+
+      // Keep checking for 10 seconds after load
+      const resizeInterval = setInterval(() => {
         if (map.current) map.current.resize();
       }, 1000);
-      setTimeout(() => {
-        if (map.current) map.current.resize();
-      }, 2000);
+      setTimeout(() => clearInterval(resizeInterval), 10000);
 
       setMapLoaded(true);
     });
@@ -1481,6 +1494,12 @@ function App() {
     };
     window.addEventListener('resize', handleResize);
 
+    // Also listen for orientation change
+    window.addEventListener('orientationchange', () => {
+      setTimeout(handleResize, 100);
+      setTimeout(handleResize, 500);
+    });
+
     // ResizeObserver for container size changes
     const resizeObserver = new ResizeObserver(() => {
       if (map.current) map.current.resize();
@@ -1488,6 +1507,9 @@ function App() {
     if (mapContainer.current) {
       resizeObserver.observe(mapContainer.current);
     }
+
+    // Also observe document body for any size changes
+    resizeObserver.observe(document.body);
 
     return () => {
       window.removeEventListener('resize', handleResize);
