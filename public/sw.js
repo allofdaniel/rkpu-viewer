@@ -1,5 +1,5 @@
 /**
- * Service Worker for RKPU Viewer PWA
+ * Service Worker for TBAS PWA
  * DO-278A 요구사항 추적: SRS-PWA-001
  *
  * 캐싱 전략:
@@ -22,15 +22,15 @@ function getCurrentAiracCycle() {
 }
 
 const AIRAC_CYCLE = getCurrentAiracCycle();
-const CACHE_VERSION = 'v6';
+const CACHE_VERSION = 'v7';
 
 // 캐시 이름 정의
 const CACHES = {
-  appShell: `rkpu-app-shell-${CACHE_VERSION}`,
-  static: `rkpu-static-${CACHE_VERSION}`,
-  dynamic: `rkpu-dynamic-${CACHE_VERSION}`,
-  aviation: `rkpu-aviation-${CACHE_VERSION}-airac-${AIRAC_CYCLE}`,
-  api: `rkpu-api-${CACHE_VERSION}`,
+  appShell: `tbas-app-shell-${CACHE_VERSION}`,
+  static: `tbas-static-${CACHE_VERSION}`,
+  dynamic: `tbas-dynamic-${CACHE_VERSION}`,
+  aviation: `tbas-aviation-${CACHE_VERSION}-airac-${AIRAC_CYCLE}`,
+  api: `tbas-api-${CACHE_VERSION}`,
 };
 
 // App Shell - 핵심 UI 파일
