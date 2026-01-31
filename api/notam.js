@@ -100,6 +100,48 @@ function isValidInPeriod(notam, period) {
   return true;
 }
 
+// Transform AIM Korea NOTAM item to frontend format
+function transformAimNotam(item) {
+  return {
+    notam_number: item.NOTAM_NO || '',
+    location: item.LOCATION || '',
+    full_text: item.FULL_TEXT || '',
+    e_text: item.ECODE || '',
+    qcode: item.QCODE || '',
+    qcode_mean: item.QCODE_MEAN || '',
+    effective_start: item.EFFECTIVESTART || '',
+    effective_end: item.EFFECTIVEEND || '',
+    series: item.SERIES || '',
+    fir: item.FIR || '',
+  };
+}
+
+// Flatten AIM Korea grouped data into a flat NOTAM array
+function flattenAimData(aimData) {
+  const items = [];
+  // Domestic NOTAMs (grouped by series: A, C, D, E, G, Z)
+  if (aimData.domestic) {
+    for (const seriesItems of Object.values(aimData.domestic)) {
+      if (Array.isArray(seriesItems)) {
+        for (const item of seriesItems) items.push(transformAimNotam(item));
+      }
+    }
+  }
+  // International NOTAMs (grouped by airport: RKSI, RKSS, ...)
+  if (aimData.international) {
+    for (const airportItems of Object.values(aimData.international)) {
+      if (Array.isArray(airportItems)) {
+        for (const item of airportItems) items.push(transformAimNotam(item));
+      }
+    }
+  }
+  // SNOWTAM
+  if (Array.isArray(aimData.snowtam)) {
+    for (const item of aimData.snowtam) items.push(transformAimNotam(item));
+  }
+  return items;
+}
+
 export default async function handler(req, res) {
   // DO-278A SRS-SEC-002: Use secure CORS headers
   if (setCorsHeaders(req, res)) {
@@ -112,22 +154,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Dynamic import for AWS SDK
-    const { S3Client, ListObjectsV2Command, GetObjectCommand } = await import('@aws-sdk/client-s3');
-
-    const s3Client = new S3Client({
-      region: 'ap-southeast-2',
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      },
-    });
+    const SUPABASE_PUBLIC = 'https://lxbdegbsriisiekvnpbk.supabase.co/storage/v1/object/public/notam-data';
 
     // Check query parameters
     const url = new URL(req.url, `http://${req.headers.host}`);
-    const source = url.searchParams.get('source') || 'realtime';
-    const limit = parseInt(url.searchParams.get('limit')) || 0; // 0 = no limit
-    const period = url.searchParams.get('period') || 'all'; // 'all', '1month', '1year'
+    const limit = parseInt(url.searchParams.get('limit')) || 0;
+    const period = url.searchParams.get('period') || 'all';
 
     // Bounds filtering (south,west,north,east)
     const boundsParam = url.searchParams.get('bounds');
@@ -139,158 +171,72 @@ export default async function handler(req, res) {
       }
     }
 
-    if (source === 'complete') {
-      // Find the latest complete folder
-      const listCommand = new ListObjectsV2Command({
-        Bucket: 'notam-korea-data',
-        Prefix: 'notam_complete/',
-        Delimiter: '/',
-      });
-
-      const listResponse = await s3Client.send(listCommand);
-      const folders = (listResponse.CommonPrefixes || [])
-        .map(p => p.Prefix)
-        .filter(p => p.includes('notam_complete/'))
-        .sort()
-        .reverse();
-
-      // Get the latest folder (sorted by timestamp in folder name)
-      const latestFolder = folders[0] || 'notam_complete/20251222_225257/';
-      const completeKey = `${latestFolder}notam_final_complete.json`;
-
-      // Fetch complete NOTAM database
-      const getCommand = new GetObjectCommand({
-        Bucket: 'notam-korea-data',
-        Key: completeKey,
-      });
-
-      const getResponse = await s3Client.send(getCommand);
-      const bodyString = await getResponse.Body.transformToString();
-      let notamData = JSON.parse(bodyString);
-      const totalCount = notamData.length;
-
-      // Filter by period first (this is the most effective filter for reducing data)
-      if (period && period !== 'all') {
-        notamData = notamData.filter(notam => isValidInPeriod(notam, period));
-      }
-      const afterPeriodCount = notamData.length;
-
-      // Filter by bounds if specified
-      if (bounds) {
-        notamData = notamData.filter(notam => {
-          const coords = parseNotamCoordinates(notam.full_text);
-          if (!coords) return false; // Skip NOTAMs without parseable coordinates
-          return isInBounds(coords.lat, coords.lon, bounds);
-        });
-      }
-
-      // Apply limit if specified (after all filtering)
-      const filteredCount = notamData.length;
-      if (limit > 0 && notamData.length > limit) {
-        notamData = notamData.slice(0, limit);
-      }
-
-      return res.status(200).json({
-        data: notamData,
-        count: totalCount,
-        afterPeriodFilter: afterPeriodCount,
-        filtered: filteredCount,
-        returned: notamData.length,
-        source: 's3-complete',
-        period: period,
-        bounds: bounds,
-        file: completeKey,
-      });
-    }
-
-    // Default: fetch realtime NOTAM data
-    // Get today's date in YYYY-MM-DD format
+    // Fetch latest NOTAM data from Supabase Storage (public bucket)
     const today = new Date().toISOString().split('T')[0];
-    const prefix = `notam_realtime/${today}/`;
+    let latestPath = `notam_realtime/${today}/notam_latest.json`;
+    let fileUrl = `${SUPABASE_PUBLIC}/${latestPath}`;
 
-    // List objects in today's folder to find the latest file
-    const listCommand = new ListObjectsV2Command({
-      Bucket: 'notam-korea-data',
-      Prefix: prefix,
-    });
+    let response = await fetch(fileUrl);
 
-    let listResponse = await s3Client.send(listCommand);
-
-    if (!listResponse.Contents || listResponse.Contents.length === 0) {
-      // Try yesterday if today's folder is empty
+    // Fallback to yesterday if today's data not found
+    if (!response.ok) {
       const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-      const yesterdayPrefix = `notam_realtime/${yesterday}/`;
-
-      const yesterdayListCommand = new ListObjectsV2Command({
-        Bucket: 'notam-korea-data',
-        Prefix: yesterdayPrefix,
-      });
-
-      listResponse = await s3Client.send(yesterdayListCommand);
-
-      if (!listResponse.Contents || listResponse.Contents.length === 0) {
-        return res.status(200).json({ data: [], count: 0, source: 's3-realtime', message: 'No NOTAM data found' });
-      }
+      latestPath = `notam_realtime/${yesterday}/notam_latest.json`;
+      fileUrl = `${SUPABASE_PUBLIC}/${latestPath}`;
+      response = await fetch(fileUrl);
     }
 
-    // Sort by LastModified to get the latest file
-    const sortedFiles = listResponse.Contents.sort((a, b) =>
-      new Date(b.LastModified) - new Date(a.LastModified)
-    );
+    if (!response.ok) {
+      return res.status(200).json({ data: [], count: 0, source: 'supabase', message: 'No NOTAM data found' });
+    }
 
-    const latestFile = sortedFiles[0];
+    const aimData = await response.json();
 
-    // Get the latest NOTAM file
-    const getCommand = new GetObjectCommand({
-      Bucket: 'notam-korea-data',
-      Key: latestFile.Key,
-    });
+    // Flatten AIM Korea grouped format into flat array with frontend field names
+    let notamData = flattenAimData(aimData);
+    const totalCount = notamData.length;
 
-    const getResponse = await s3Client.send(getCommand);
-    const bodyString = await getResponse.Body.transformToString();
-    const notamData = JSON.parse(bodyString);
+    // Filter by period
+    if (period && period !== 'all') {
+      notamData = notamData.filter(notam => isValidInPeriod(notam, period));
+    }
+    const afterPeriodCount = notamData.length;
+
+    // Filter by bounds if specified
+    if (bounds) {
+      notamData = notamData.filter(notam => {
+        const coords = parseNotamCoordinates(notam.full_text);
+        if (!coords) return false;
+        return isInBounds(coords.lat, coords.lon, bounds);
+      });
+    }
+
+    const filteredCount = notamData.length;
+    if (limit > 0 && notamData.length > limit) {
+      notamData = notamData.slice(0, limit);
+    }
 
     res.status(200).json({
       data: notamData,
-      count: notamData.length,
+      count: totalCount,
+      afterPeriodFilter: afterPeriodCount,
+      filtered: filteredCount,
       returned: notamData.length,
-      source: 's3-realtime',
-      file: latestFile.Key,
-      lastModified: latestFile.LastModified,
+      source: 'supabase',
+      period: period,
+      bounds: bounds,
+      file: latestPath,
+      crawled_at: aimData.crawled_at || null,
     });
   } catch (error) {
-    // DO-278A SRS-SEC-007: 스택트레이스 로깅 제거
-    console.error('NOTAM S3 error:', error.message);
+    console.error('NOTAM fetch error:', error.message);
 
-    // Fallback to original API if S3 fails
-    // DO-278A SRS-SEC-005: 하드코딩된 IP 대신 환경변수 사용
-    const NOTAM_FALLBACK_API = process.env.NOTAM_FALLBACK_API || '';
-    if (!NOTAM_FALLBACK_API) {
-      // Fallback API가 설정되지 않은 경우 에러 반환
-      return res.status(503).json({
-        error: 'Service temporarily unavailable',
-        code: 'S3_ERROR_NO_FALLBACK',
-        details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
-      });
-    }
-
-    try {
-      const response = await fetch(`${NOTAM_FALLBACK_API}/notams/realtime?limit=500`);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const data = await response.json();
-      res.status(200).json({ ...data, source: 'api-fallback' });
-    } catch (fallbackError) {
-      // DO-278A SRS-SEC-006: 프로덕션에서 에러 상세 숨김
-      res.status(500).json({
-        error: 'NOTAM service temporarily unavailable',
-        code: 'NOTAM_ERROR',
-        ...(process.env.NODE_ENV === 'development' && {
-          details: error.message,
-          fallbackDetails: fallbackError.message
-        })
-      });
-    }
+    res.status(500).json({
+      error: 'NOTAM service temporarily unavailable',
+      code: 'NOTAM_ERROR',
+      ...(process.env.NODE_ENV === 'development' && {
+        details: error.message,
+      })
+    });
   }
 }
