@@ -247,11 +247,43 @@ const useMapStyle = ({
 
     if (is3DView) {
       map.current.easeTo({ pitch: 60, bearing: -30, duration: 1000 });
+      // Terrain 활성화 (스타일 리로드 없이 3D 전환 시에도 동작하도록)
+      if (!map.current.getSource('mapbox-dem')) {
+        map.current.addSource('mapbox-dem', {
+          type: 'raster-dem',
+          url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+          tileSize: 512,
+          maxzoom: 14
+        });
+      }
+      if (showTerrain && !show3DAltitude) {
+        map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
+      }
+      // 3D 빌딩 추가
+      try {
+        if (!map.current.getLayer('3d-buildings') && map.current.getSource('composite')) {
+          map.current.addLayer({
+            id: '3d-buildings',
+            source: 'composite',
+            'source-layer': 'building',
+            type: 'fill-extrusion',
+            minzoom: 12,
+            paint: {
+              'fill-extrusion-color': '#aaa',
+              'fill-extrusion-height': ['get', 'height'],
+              'fill-extrusion-base': ['get', 'min_height'],
+              'fill-extrusion-opacity': 0.6
+            }
+          });
+        }
+      } catch {
+        // composite source not available
+      }
     } else {
       map.current.easeTo({ pitch: 0, bearing: 0, duration: 1000 });
       map.current.setTerrain(null);
     }
-  }, [map, is3DView, mapLoaded]);
+  }, [map, is3DView, mapLoaded, showTerrain, show3DAltitude]);
 };
 
 export default useMapStyle;
