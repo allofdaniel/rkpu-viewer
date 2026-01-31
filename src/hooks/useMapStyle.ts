@@ -134,6 +134,9 @@ const useMapStyle = ({
         });
       }
 
+      // 스타일 리로드 후 3D 상태를 다시 적용하도록 ref 리셋
+      prev3DViewRef.current = null;
+
       setMapLoaded(false);
       setTimeout(() => setMapLoaded(true), 100);
     });
