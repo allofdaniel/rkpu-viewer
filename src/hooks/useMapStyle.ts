@@ -74,7 +74,7 @@ const useMapStyle = ({
 
       // 3D 고도 표시가 활성화되면 terrain을 비활성화하여 MSL 기준 절대 고도로 표시
       if (is3DView && showTerrain && !show3DAltitude) {
-        map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
+        map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 2.5 });
       }
 
       // Add sky layer
@@ -98,7 +98,7 @@ const useMapStyle = ({
             source: 'composite',
             'source-layer': 'building',
             type: 'fill-extrusion',
-            minzoom: 12,
+            minzoom: 10,
             paint: {
               'fill-extrusion-color': '#aaa',
               'fill-extrusion-height': ['get', 'height'],
@@ -257,7 +257,7 @@ const useMapStyle = ({
         });
       }
       if (showTerrain && !show3DAltitude) {
-        map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
+        map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 2.5 });
       }
       // 3D 빌딩 추가
       try {
@@ -267,7 +267,7 @@ const useMapStyle = ({
             source: 'composite',
             'source-layer': 'building',
             type: 'fill-extrusion',
-            minzoom: 12,
+            minzoom: 10,
             paint: {
               'fill-extrusion-color': '#aaa',
               'fill-extrusion-height': ['get', 'height'],
