@@ -316,10 +316,8 @@ const useMapStyle = ({
       const currentPitch = map.current.getPitch();
 
       if (!is3DView && currentPitch > PITCH_3D_THRESHOLD) {
-        prev3DViewRef.current = true;
         setIs3DView(true);
       } else if (is3DView && currentPitch < PITCH_2D_THRESHOLD) {
-        prev3DViewRef.current = false;
         setIs3DView(false);
       }
     };
