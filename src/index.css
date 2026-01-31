@@ -2503,6 +2503,114 @@ body {
   color: #ffb74d;
 }
 
+/* NOTAM/Weather Tab Bar */
+.notam-tab-bar {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notam-tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-bottom: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.notam-tab:hover {
+  color: #bbb;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.notam-tab.active {
+  color: #ffb74d;
+  border-bottom-color: #ffb74d;
+  background: rgba(255, 152, 0, 0.05);
+}
+
+.notam-tab-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(244, 67, 54, 0.3);
+  color: #ef9a9a;
+  font-weight: 700;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* Weather Tab Content */
+.notam-weather-content {
+  padding: 10px 12px;
+}
+
+.wx-layer-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+
+.wx-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.wx-toggle-item input[type="checkbox"] {
+  accent-color: #ffb74d;
+}
+
+.wx-inline-section {
+  margin-bottom: 10px;
+}
+
+.wx-inline-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffb74d;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 152, 0, 0.15);
+}
+
+.wx-lightning-time {
+  font-size: 10px;
+  color: #81c784;
+  margin-bottom: 6px;
+}
+
+.wx-legend-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 10px;
+  color: #888;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.wx-legend-inline span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .notam-header-controls {
   display: flex;
   align-items: center;
@@ -3063,6 +3171,52 @@ body {
 
 .light-mode .notam-dropdown-title {
   color: #e65100;
+}
+
+.light-mode .notam-tab {
+  color: #999;
+}
+
+.light-mode .notam-tab:hover {
+  color: #555;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.light-mode .notam-tab.active {
+  color: #e65100;
+  border-bottom-color: #e65100;
+  background: rgba(255, 152, 0, 0.05);
+}
+
+.light-mode .notam-tab-badge {
+  background: rgba(244, 67, 54, 0.15);
+  color: #d32f2f;
+}
+
+.light-mode .notam-tab-bar {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+.light-mode .wx-layer-toggles {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.light-mode .wx-toggle-item {
+  color: #555;
+}
+
+.light-mode .wx-inline-header {
+  color: #e65100;
+  border-bottom-color: rgba(255, 152, 0, 0.12);
+}
+
+.light-mode .wx-lightning-time {
+  color: #2e7d32;
+}
+
+.light-mode .wx-legend-inline {
+  border-top-color: rgba(0, 0, 0, 0.05);
+  color: #666;
 }
 
 .light-mode .notam-source-select,

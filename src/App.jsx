@@ -42,7 +42,6 @@ import {
   StarPanel,
   ApproachPanel,
   ChartOverlayPanel,
-  WeatherPanel,
   AircraftDetailPanel,
   TimeWeatherBar,
   ViewControlsBar,
@@ -414,13 +413,12 @@ function App() {
         setIsDarkMode={setIsDarkMode}
         showSatellite={showSatellite}
         setShowSatellite={setShowSatellite}
-        wxLayersExpanded={wxLayersExpanded}
-        setWxLayersExpanded={setWxLayersExpanded}
         showLightning={showLightning}
         setShowLightning={setShowLightning}
         showSigmet={showSigmet}
         setShowSigmet={setShowSigmet}
-        setShowWxPanel={setShowWxPanel}
+        sigmetData={sigmetData}
+        lightningData={lightningData}
         showNotamPanel={showNotamPanel}
         setShowNotamPanel={setShowNotamPanel}
         notamData={notamData}
@@ -716,16 +714,6 @@ function App() {
         AIRPORT_DATABASE={AIRPORT_DATABASE}
       />
 
-      {/* Weather Panel */}
-      <WeatherPanel
-        showWxPanel={showWxPanel}
-        setShowWxPanel={setShowWxPanel}
-        wxPanelTab={wxPanelTab}
-        setWxPanelTab={setWxPanelTab}
-        sigmetData={sigmetData}
-        notamData={notamData}
-        lightningData={lightningData}
-      />
     </div>
   );
 }

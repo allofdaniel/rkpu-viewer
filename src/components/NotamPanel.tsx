@@ -2,11 +2,10 @@
  * NotamPanel Component
  * NOTAM 드롭다운 패널 컴포넌트
  */
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AIRPORT_DATABASE,
   COUNTRY_INFO,
-  KOREA_AIRPORTS,
   AIRPORT_COORDINATES,
 } from '../constants/airports';
 import {
@@ -39,6 +38,36 @@ interface NotamExpandedState {
   [key: string]: boolean;
 }
 
+interface SigmetItem {
+  hazard?: string;
+  seriesId?: string;
+  rawSigmet?: string;
+  firName?: string;
+  base?: number;
+  top?: number;
+  dir?: string;
+  spd?: number;
+}
+
+interface SigmetData {
+  kma?: SigmetItem[];
+  international?: SigmetItem[];
+}
+
+interface LightningStrike {
+  lat?: number;
+  lon?: number;
+  amplitude?: number;
+}
+
+interface LightningData {
+  strikes?: LightningStrike[];
+  timeRange?: {
+    start?: string;
+    end?: string;
+  };
+}
+
 interface NotamPanelProps {
   // Panel state
   showNotamPanel: boolean;
@@ -68,12 +97,14 @@ interface NotamPanelProps {
 
   // Actions
   fetchNotamData: (period: string, forceRefresh?: boolean) => void;
-}
 
-interface LocationFilterProps {
-  notamData: NotamDataResponse | null;
-  notamLocationFilter: string;
-  setNotamLocationFilter: (filter: string) => void;
+  // Weather
+  showLightning: boolean;
+  setShowLightning: (show: boolean) => void;
+  showSigmet: boolean;
+  setShowSigmet: (show: boolean) => void;
+  sigmetData: SigmetData | null;
+  lightningData: LightningData | null;
 }
 
 interface MapToggleSectionProps {
@@ -129,7 +160,17 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
 
   // Actions
   fetchNotamData,
+
+  // Weather
+  showLightning,
+  setShowLightning,
+  showSigmet,
+  setShowSigmet,
+  sigmetData,
+  lightningData,
 }) => {
+  const [activeTab, setActiveTab] = useState<'notam' | 'weather'>('notam');
+
   return (
     <div className="notam-dropdown-wrapper">
       <button
@@ -149,25 +190,6 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
           <div className="notam-dropdown-header">
             <span className="notam-dropdown-title">NOTAM</span>
             <div className="notam-header-controls">
-              <select
-                className="notam-period-select"
-                value={notamPeriod}
-                onChange={(e) => setNotamPeriod(e.target.value)}
-                title="기간"
-                aria-label="NOTAM 표시 기간 선택"
-              >
-                <option value="current">현재 유효</option>
-                <option value="1month">1개월</option>
-                <option value="1year">1년</option>
-                <option value="all">전체</option>
-              </select>
-
-              <LocationFilter
-                notamData={notamData}
-                notamLocationFilter={notamLocationFilter}
-                setNotamLocationFilter={setNotamLocationFilter}
-              />
-
               <button
                 className="notam-refresh-btn"
                 onClick={() => fetchNotamData(notamPeriod, true)}
@@ -176,15 +198,23 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
               >
                 ↻
               </button>
-
-              {notamCacheAge !== null && (
-                <span className="notam-cache-info" title="캐시된 데이터 사용 중">
-                  📦 {Math.floor(notamCacheAge / 1000)}초 전
-                </span>
-              )}
             </div>
           </div>
 
+          {/* Tab Bar */}
+          <div className="notam-tab-bar">
+            <button className={`notam-tab ${activeTab === 'notam' ? 'active' : ''}`} onClick={() => setActiveTab('notam')}>
+              NOTAM
+            </button>
+            <button className={`notam-tab ${activeTab === 'weather' ? 'active' : ''}`} onClick={() => setActiveTab('weather')}>
+              기상
+              {((sigmetData?.kma?.length || 0) + (sigmetData?.international?.length || 0)) > 0 && (
+                <span className="notam-tab-badge">{(sigmetData?.kma?.length || 0) + (sigmetData?.international?.length || 0)}</span>
+              )}
+            </button>
+          </div>
+
+          {activeTab === 'notam' && (<>
           {/* Search */}
           <div className="notam-search">
             <input
@@ -250,64 +280,107 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
               {notamLocationsOnMap.size > 0 ? [...notamLocationsOnMap].join(', ') : '지도 영역 기준'}
             </span>
           </div>
+          </>)}
+
+          {activeTab === 'weather' && (
+            <div className="notam-weather-content">
+              {/* Map Layer Toggles */}
+              <div className="wx-layer-toggles">
+                <label className="wx-toggle-item">
+                  <input type="checkbox" checked={showLightning} onChange={() => setShowLightning(!showLightning)} />
+                  <span>낙뢰 표시</span>
+                </label>
+                <label className="wx-toggle-item">
+                  <input type="checkbox" checked={showSigmet} onChange={() => setShowSigmet(!showSigmet)} />
+                  <span>SIGMET 표시</span>
+                </label>
+              </div>
+
+              {/* SIGMET Section - Korean FIR */}
+              <div className="wx-inline-section">
+                <div className="wx-section-title">
+                  <span>한국 FIR SIGMET</span>
+                  <span className="wx-count">{sigmetData?.kma?.length || 0}건</span>
+                </div>
+                {(!sigmetData?.kma || sigmetData.kma.length === 0) ? (
+                  <div className="wx-no-data">현재 발효중인 SIGMET 없음</div>
+                ) : (
+                  sigmetData.kma.map((sig: SigmetItem, i: number) => (
+                    <div key={i} className={`wx-sigmet-item hazard-${(sig.hazard || 'unknown').toLowerCase()}`}>
+                      <div className="sigmet-header">
+                        <span className="sigmet-type">{sig.hazard || 'SIGMET'}</span>
+                        <span className="sigmet-id">{sig.seriesId}</span>
+                      </div>
+                      <div className="sigmet-raw">{sig.rawSigmet}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* SIGMET Section - International */}
+              {sigmetData?.international && sigmetData.international.length > 0 && (
+                <div className="wx-inline-section">
+                  <div className="wx-section-title">
+                    <span>국제 SIGMET</span>
+                    <span className="wx-count">{sigmetData.international.length}건</span>
+                  </div>
+                  {sigmetData.international.slice(0, 15).map((sig: SigmetItem, i: number) => (
+                    <div key={i} className={`wx-sigmet-item hazard-${(sig.hazard || 'unknown').toLowerCase()}`}>
+                      <div className="sigmet-header">
+                        <span className="sigmet-type">{sig.hazard || 'SIGMET'}</span>
+                        <span className="sigmet-fir">{sig.firName?.split(' ')[0]}</span>
+                        <span className="sigmet-id">{sig.seriesId}</span>
+                      </div>
+                      <div className="sigmet-info">
+                        {sig.base != null && sig.top != null && <span>FL{Math.round(sig.base/100)}-{Math.round(sig.top/100)}</span>}
+                        {sig.dir && sig.spd && <span> MOV {sig.dir} {sig.spd}kt</span>}
+                      </div>
+                      <div className="sigmet-raw">{sig.rawSigmet?.slice(0, 200)}{(sig.rawSigmet?.length || 0) > 200 ? '...' : ''}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Lightning Section */}
+              <div className="wx-inline-section">
+                <div className="wx-section-title">
+                  <span>낙뢰 정보 (1시간)</span>
+                  <span className="wx-count">{lightningData?.strikes?.length || 0}건</span>
+                </div>
+                {(!lightningData?.strikes || lightningData.strikes.length === 0) ? (
+                  <div className="wx-no-data">최근 1시간 내 낙뢰 발생 없음</div>
+                ) : (
+                  <>
+                    {lightningData.timeRange && (
+                      <div className="wx-lightning-time">
+                        관측기간: {lightningData.timeRange.start?.slice(8, 12)} - {lightningData.timeRange.end?.slice(8, 12)}
+                      </div>
+                    )}
+                    {lightningData.strikes.slice(0, 50).map((strike: LightningStrike, i: number) => (
+                      <div key={i} className="wx-lightning-item">
+                        <span className="lightning-pos">{strike.lat?.toFixed(3)}N {strike.lon?.toFixed(3)}E</span>
+                        {strike.amplitude && <span className="lightning-amp">{strike.amplitude}kA</span>}
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+
+              {/* SIGMET Legend */}
+              <div className="wx-legend-inline">
+                <div className="legend-title">SIGMET 유형</div>
+                <div className="legend-items">
+                  <span className="legend-item"><span className="legend-color turb"></span>TURB 난류</span>
+                  <span className="legend-item"><span className="legend-color ice"></span>ICE 착빙</span>
+                  <span className="legend-item"><span className="legend-color ts"></span>TS 뇌우</span>
+                  <span className="legend-item"><span className="legend-color va"></span>VA 화산재</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
-  );
-};
-
-/**
- * Location Filter Select Component
- */
-const LocationFilter: React.FC<LocationFilterProps> = ({ notamData, notamLocationFilter, setNotamLocationFilter }) => {
-  const locations = [...new Set(notamData?.data?.map(n => n.location).filter(Boolean) as string[])];
-  const counts: Record<string, number> = {};
-  locations.forEach(loc => {
-    counts[loc] = notamData?.data?.filter(n => n.location === loc).length || 0;
-  });
-
-  const intlAirports = locations.filter(loc => KOREA_AIRPORTS[loc]?.type === 'international').sort();
-  const domesticAirports = locations.filter(loc => KOREA_AIRPORTS[loc]?.type === 'domestic').sort();
-  const firOther = locations.filter(loc => KOREA_AIRPORTS[loc]?.type === 'fir').sort();
-  const others = locations.filter(loc => !KOREA_AIRPORTS[loc]).sort();
-
-  return (
-    <select
-      className="notam-location-select"
-      value={notamLocationFilter}
-      onChange={(e) => setNotamLocationFilter(e.target.value)}
-      aria-label="NOTAM 지역 필터"
-    >
-      <option value="">전체 지역</option>
-      {intlAirports.length > 0 && (
-        <optgroup label="🌏 국제공항">
-          {intlAirports.map(loc => (
-            <option key={loc} value={loc}>{loc} {KOREA_AIRPORTS[loc]?.name} ({counts[loc]})</option>
-          ))}
-        </optgroup>
-      )}
-      {domesticAirports.length > 0 && (
-        <optgroup label="🏠 국내공항">
-          {domesticAirports.map(loc => (
-            <option key={loc} value={loc}>{loc} {KOREA_AIRPORTS[loc]?.name} ({counts[loc]})</option>
-          ))}
-        </optgroup>
-      )}
-      {firOther.length > 0 && (
-        <optgroup label="📡 FIR/ACC">
-          {firOther.map(loc => (
-            <option key={loc} value={loc}>{loc} {KOREA_AIRPORTS[loc]?.name} ({counts[loc]})</option>
-          ))}
-        </optgroup>
-      )}
-      {others.length > 0 && (
-        <optgroup label="기타">
-          {others.map(loc => (
-            <option key={loc} value={loc}>{loc} ({counts[loc]})</option>
-          ))}
-        </optgroup>
-      )}
-    </select>
   );
 };
 

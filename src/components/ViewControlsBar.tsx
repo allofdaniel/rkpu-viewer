@@ -6,16 +6,6 @@
 import React from 'react';
 import NotamPanel from './NotamPanel';
 
-interface WeatherDropdownProps {
-  wxLayersExpanded: boolean;
-  setWxLayersExpanded: (expanded: boolean) => void;
-  showLightning: boolean;
-  setShowLightning: (show: boolean) => void;
-  showSigmet: boolean;
-  setShowSigmet: (show: boolean) => void;
-  setShowWxPanel: (show: boolean) => void;
-}
-
 interface NotamExpandedState {
   [key: string]: boolean;
 }
@@ -48,14 +38,13 @@ interface ViewControlsBarProps {
   // Satellite
   showSatellite: boolean;
   setShowSatellite: (show: boolean) => void;
-  // Weather Dropdown
-  wxLayersExpanded: boolean;
-  setWxLayersExpanded: (expanded: boolean) => void;
+  // Weather (pass-through to NotamPanel)
   showLightning: boolean;
   setShowLightning: (show: boolean) => void;
   showSigmet: boolean;
   setShowSigmet: (show: boolean) => void;
-  setShowWxPanel: (show: boolean) => void;
+  sigmetData: unknown;
+  lightningData: unknown;
   // NOTAM Panel props
   showNotamPanel: boolean;
   setShowNotamPanel: (show: boolean) => void;
@@ -77,68 +66,6 @@ interface ViewControlsBarProps {
 }
 
 /**
- * Weather Dropdown (기상레이더 제거됨)
- */
-const WeatherDropdown: React.FC<WeatherDropdownProps> = ({
-  wxLayersExpanded,
-  setWxLayersExpanded,
-  showLightning,
-  setShowLightning,
-  showSigmet,
-  setShowSigmet,
-  setShowWxPanel
-}) => (
-  <div className="wx-dropdown-wrapper">
-    <button
-      className={`view-btn ${wxLayersExpanded ? 'active' : ''}`}
-      onClick={() => setWxLayersExpanded(!wxLayersExpanded)}
-      title="기상정보"
-      aria-label="기상정보 메뉴"
-      aria-expanded={wxLayersExpanded}
-      aria-haspopup="menu"
-    >
-      기상
-    </button>
-    {wxLayersExpanded && (
-      <div className="wx-dropdown" role="menu" aria-label="기상 레이어 선택">
-        <div
-          className={`wx-dropdown-item ${showLightning ? 'active' : ''}`}
-          onClick={() => setShowLightning(!showLightning)}
-          role="menuitemcheckbox"
-          aria-checked={showLightning}
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowLightning(!showLightning); }}}
-        >
-          <input type="checkbox" checked={showLightning} readOnly tabIndex={-1} aria-hidden="true" />
-          <span>낙뢰</span>
-        </div>
-        <div
-          className={`wx-dropdown-item ${showSigmet ? 'active' : ''}`}
-          onClick={() => setShowSigmet(!showSigmet)}
-          role="menuitemcheckbox"
-          aria-checked={showSigmet}
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowSigmet(!showSigmet); }}}
-        >
-          <input type="checkbox" checked={showSigmet} readOnly tabIndex={-1} aria-hidden="true" />
-          <span>SIGMET</span>
-        </div>
-        <div className="wx-dropdown-divider" role="separator"></div>
-        <div
-          className="wx-dropdown-item"
-          onClick={() => setShowWxPanel(true)}
-          role="menuitem"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowWxPanel(true); }}}
-        >
-          <span>상세 기상정보 ▶</span>
-        </div>
-      </div>
-    )}
-  </div>
-);
-
-/**
  * View Controls Bar Component
  * 관제 패널은 좌측 패널로 이동됨
  * DO-278A 요구사항 추적: SRS-PERF-003
@@ -153,14 +80,13 @@ const ViewControlsBar: React.FC<ViewControlsBarProps> = React.memo(({
   // Satellite
   showSatellite,
   setShowSatellite,
-  // Weather Dropdown
-  wxLayersExpanded,
-  setWxLayersExpanded,
+  // Weather (pass-through to NotamPanel)
   showLightning,
   setShowLightning,
   showSigmet,
   setShowSigmet,
-  setShowWxPanel,
+  sigmetData,
+  lightningData,
   // NOTAM Panel props
   showNotamPanel,
   setShowNotamPanel,
@@ -182,8 +108,7 @@ const ViewControlsBar: React.FC<ViewControlsBarProps> = React.memo(({
 }) => {
   return (
     <div className="view-controls" role="toolbar" aria-label="지도 뷰 컨트롤">
-      <button className={`view-btn ${is3DView ? 'active' : ''}`} onClick={() => setIs3DView(true)} aria-pressed={is3DView} aria-label="3D 보기">3D</button>
-      <button className={`view-btn ${!is3DView ? 'active' : ''}`} onClick={() => setIs3DView(false)} aria-pressed={!is3DView} aria-label="2D 보기">2D</button>
+      <button className="view-btn" onClick={() => setIs3DView(!is3DView)} aria-pressed={is3DView} aria-label={is3DView ? '2D 보기로 전환' : '3D 보기로 전환'}>{is3DView ? '3D' : '2D'}</button>
       <button
         className="view-btn icon-btn"
         onClick={() => setIsDarkMode(!isDarkMode)}
@@ -203,16 +128,6 @@ const ViewControlsBar: React.FC<ViewControlsBarProps> = React.memo(({
         🛰️
       </button>
 
-      <WeatherDropdown
-        wxLayersExpanded={wxLayersExpanded}
-        setWxLayersExpanded={setWxLayersExpanded}
-        showLightning={showLightning}
-        setShowLightning={setShowLightning}
-        showSigmet={showSigmet}
-        setShowSigmet={setShowSigmet}
-        setShowWxPanel={setShowWxPanel}
-      />
-
       <NotamPanel
         showNotamPanel={showNotamPanel}
         setShowNotamPanel={setShowNotamPanel}
@@ -231,6 +146,12 @@ const ViewControlsBar: React.FC<ViewControlsBarProps> = React.memo(({
         notamLocationsOnMap={notamLocationsOnMap}
         setNotamLocationsOnMap={setNotamLocationsOnMap}
         fetchNotamData={fetchNotamData}
+        showLightning={showLightning}
+        setShowLightning={setShowLightning}
+        showSigmet={showSigmet}
+        setShowSigmet={setShowSigmet}
+        sigmetData={sigmetData as never}
+        lightningData={lightningData as never}
       />
     </div>
   );

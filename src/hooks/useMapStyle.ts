@@ -31,6 +31,7 @@ const useMapStyle = ({
   show3DAltitude
 }: UseMapStyleOptions): void => {
   const prevStyleRef = useRef<string | null>(null);
+  const prev3DViewRef = useRef(is3DView);
 
   // Handle base style change (dark/light/satellite) - NOT black background
   useEffect(() => {
@@ -180,9 +181,13 @@ const useMapStyle = ({
     }
   }, [map, radarBlackBackground, mapLoaded]);
 
-  // Handle 2D/3D toggle
+  // Handle 2D/3D toggle - only animate when is3DView actually changes
   useEffect(() => {
     if (!map?.current || !mapLoaded) return;
+    // Skip if is3DView hasn't changed (e.g. mapLoaded toggled due to style switch)
+    if (prev3DViewRef.current === is3DView) return;
+    prev3DViewRef.current = is3DView;
+
     if (is3DView) {
       map.current.easeTo({ pitch: 60, bearing: -30, duration: 1000 });
     } else {

@@ -370,3 +370,77 @@ export const createNotamCircle = (
   }
   return [coords];
 };
+
+/**
+ * DMS 좌표 하나를 decimal degrees로 변환
+ * format: DDMMSS[NS] or DDDMMSS[EW]
+ */
+const parseDmsCoord = (dms: string, isLon: boolean): number | null => {
+  const len = isLon ? 7 : 6; // DDDMMSS vs DDMMSS (direction char excluded)
+  if (dms.length < len + 1) return null;
+  const dir = dms.charAt(dms.length - 1);
+  const numPart = dms.substring(0, dms.length - 1);
+
+  let deg: number, min: number, sec: number;
+  if (isLon) {
+    deg = parseInt(numPart.substring(0, 3), 10);
+    min = parseInt(numPart.substring(3, 5), 10);
+    sec = parseInt(numPart.substring(5, 7), 10);
+  } else {
+    deg = parseInt(numPart.substring(0, 2), 10);
+    min = parseInt(numPart.substring(2, 4), 10);
+    sec = parseInt(numPart.substring(4, 6), 10);
+  }
+
+  if (isNaN(deg) || isNaN(min) || isNaN(sec)) return null;
+  let val = deg + min / 60 + sec / 3600;
+  if (dir === 'S' || dir === 'W') val = -val;
+  return val;
+};
+
+/**
+ * NOTAM E-text에서 다각형 좌표 추출
+ * 패턴: DDMMSSN/DDDMMSSE-DDMMSSN/DDDMMSSE-... (하이픈 구분)
+ * 예: 363910N1272105E-363909N1272110E-363902N1272111E-363904N1272103E-363910N1272105E
+ * 줄바꿈이 좌표 중간에 들어올 수 있음
+ */
+export const parseNotamPolygon = (fullText: string | null | undefined): [number, number][][] | null => {
+  if (!fullText) return null;
+
+  // Normalize: remove \r\n within coordinate sequences (AIM wraps long lines)
+  const normalized = fullText.replace(/\r?\n/g, '');
+
+  // Match a chain of 3+ DMS coordinate pairs separated by hyphens
+  // Each pair: DDMMSSx DDDMMSSx where x is N/S/E/W
+  const polyPattern = /(\d{6}[NS]\d{7}[EW])(?:\s*-\s*(\d{6}[NS]\d{7}[EW])){2,}/g;
+  const match = polyPattern.exec(normalized);
+  if (!match) return null;
+
+  // Extract the full matched string and split by hyphen
+  const fullMatch = match[0];
+  const coordPairs = fullMatch.split(/\s*-\s*/);
+
+  if (coordPairs.length < 3) return null;
+
+  const ring: [number, number][] = [];
+  for (const pair of coordPairs) {
+    // Split: first 6+1 chars = lat (DDMMSSN), rest = lon (DDDMMSSE)
+    const latPart = pair.substring(0, 7); // e.g., 363910N
+    const lonPart = pair.substring(7);     // e.g., 1272105E
+    const lat = parseDmsCoord(latPart, false);
+    const lon = parseDmsCoord(lonPart, true);
+    if (lat === null || lon === null) return null;
+    ring.push([lon, lat]);
+  }
+
+  // Close the ring if not already closed
+  if (ring.length >= 3) {
+    const first = ring[0]!;
+    const last = ring[ring.length - 1]!;
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      ring.push([first[0], first[1]]);
+    }
+  }
+
+  return [ring];
+};

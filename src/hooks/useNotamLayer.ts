@@ -8,6 +8,7 @@ import {
   getNotamValidity,
   buildCancelledNotamSet,
   createNotamCircle,
+  parseNotamPolygon,
 } from '../utils/notam';
 import type { NotamItem, NotamData } from './useNotam';
 
@@ -81,9 +82,11 @@ export default function useNotamLayer(
     const notamFeatures: NotamFeature[] = validNotams.map((n: NotamItem) => {
       const coords = getNotamDisplayCoords(n) as NotamCoords;
       const validity = getNotamValidity(n, cancelledSet);
+      // Try to parse polygon coordinates from E-text (e.g., danger areas, restricted areas)
+      const polygonCoords = parseNotamPolygon(n.full_text);
       return {
         type: 'Feature',
-        geometry: { type: 'Polygon', coordinates: createNotamCircle(coords.lon, coords.lat, coords.radiusNM || 5) },
+        geometry: { type: 'Polygon', coordinates: polygonCoords || createNotamCircle(coords.lon, coords.lat, coords.radiusNM || 5) },
         properties: {
           id: n.id,
           notam_number: n.notam_number,
@@ -98,7 +101,8 @@ export default function useNotamLayer(
           fir: n.fir,
           lowerAlt: coords.lowerAlt,
           upperAlt: coords.upperAlt,
-          validity: validity
+          validity: validity,
+          isPolygon: polygonCoords ? true : false
         }
       };
     });
