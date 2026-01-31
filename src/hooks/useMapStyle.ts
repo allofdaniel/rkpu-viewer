@@ -37,8 +37,10 @@ const useMapStyle = ({
   useEffect(() => {
     if (!map?.current || !mapLoaded) return;
 
-    // 기본 스타일 선택 (검은 배경은 레이어로 처리)
-    const newStyle = showSatellite
+    // 기본 스타일 선택
+    // V-World 키가 있으면 위성은 래스터 오버레이로 처리 (스타일 교체 불필요)
+    const vworldKey = import.meta.env.VITE_VWORLD_API_KEY;
+    const newStyle = (!vworldKey && showSatellite)
       ? MAP_STYLES.satellite as string
       : (isDarkMode ? MAP_STYLES.dark as string : MAP_STYLES.light as string);
 
@@ -180,6 +182,61 @@ const useMapStyle = ({
       }
     }
   }, [map, radarBlackBackground, mapLoaded]);
+
+  // Handle V-World satellite raster overlay toggle
+  useEffect(() => {
+    if (!map?.current || !mapLoaded) return;
+    const vworldKey = import.meta.env.VITE_VWORLD_API_KEY;
+    if (!vworldKey) return; // V-World 미설정 시 Mapbox satellite 폴백
+    if (!map.current.isStyleLoaded()) return;
+
+    const sourceId = 'vworld-satellite';
+    const layerId = 'vworld-satellite-layer';
+
+    if (showSatellite) {
+      // V-World 래스터 소스 추가
+      if (!map.current.getSource(sourceId)) {
+        map.current.addSource(sourceId, {
+          type: 'raster',
+          tiles: [`https://api.vworld.kr/req/wmts/1.0.0/${vworldKey}/Satellite/{z}/{y}/{x}.jpeg`],
+          tileSize: 256,
+          minzoom: 5,
+          maxzoom: 19,
+          attribution: '&copy; V-World (국토교통부)'
+        });
+      }
+      // 래스터 레이어 추가 (기본 지도 위, 커스텀 레이어 아래)
+      if (!map.current.getLayer(layerId)) {
+        const customLayerIds = [
+          'radar-black-overlay',
+          'aircraft-3d', 'aircraft-2d', 'aircraft-labels',
+          'aircraft-trails-3d', 'aircraft-trails-2d', 'trail-layer',
+          'waypoint-layer', 'airspace-layer', 'atc-sectors-fill'
+        ];
+        let beforeLayerId: string | undefined;
+        for (const id of customLayerIds) {
+          if (map.current.getLayer(id)) {
+            beforeLayerId = id;
+            break;
+          }
+        }
+        map.current.addLayer({
+          id: layerId,
+          type: 'raster',
+          source: sourceId,
+          paint: { 'raster-opacity': 1 }
+        }, beforeLayerId);
+      }
+    } else {
+      // V-World 레이어/소스 제거
+      if (map.current.getLayer(layerId)) {
+        map.current.removeLayer(layerId);
+      }
+      if (map.current.getSource(sourceId)) {
+        map.current.removeSource(sourceId);
+      }
+    }
+  }, [map, showSatellite, mapLoaded]);
 
   // Handle 2D/3D toggle - only animate when is3DView actually changes
   useEffect(() => {
