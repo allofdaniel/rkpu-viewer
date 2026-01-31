@@ -204,7 +204,7 @@ function App() {
   useMapStyle({
     map, mapLoaded, setMapLoaded,
     isDarkMode, showSatellite, radarBlackBackground,
-    is3DView, showTerrain, show3DAltitude
+    is3DView, setIs3DView, showTerrain, show3DAltitude
   });
 
   // Chart overlay hook

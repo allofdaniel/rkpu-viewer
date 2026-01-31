@@ -15,6 +15,7 @@ export interface UseMapStyleOptions {
   showSatellite: boolean;
   radarBlackBackground: boolean;
   is3DView: boolean;
+  setIs3DView: (value: boolean) => void;
   showTerrain: boolean;
   show3DAltitude: boolean;
 }
@@ -27,6 +28,7 @@ const useMapStyle = ({
   showSatellite,
   radarBlackBackground,
   is3DView,
+  setIs3DView,
   showTerrain,
   show3DAltitude
 }: UseMapStyleOptions): void => {
@@ -59,8 +61,15 @@ const useMapStyle = ({
 
       map.current.setCenter(center);
       map.current.setZoom(zoom);
-      map.current.setPitch(pitch);
-      map.current.setBearing(bearing);
+
+      // 3D 모드: 저장된 pitch가 있으면 복원, 없으면 기본 3D 값 적용
+      if (is3DView) {
+        map.current.setPitch(pitch > 0 ? pitch : 60);
+        map.current.setBearing(bearing !== 0 ? bearing : -30);
+      } else {
+        map.current.setPitch(pitch);
+        map.current.setBearing(bearing);
+      }
 
       // Add terrain source
       if (!map.current.getSource('mapbox-dem')) {
@@ -134,8 +143,8 @@ const useMapStyle = ({
         });
       }
 
-      // 스타일 리로드 후 3D 상태를 다시 적용하도록 ref 리셋
-      prev3DViewRef.current = null;
+      // 스타일 리로드에서 3D 상태를 직접 처리했으므로 ref를 현재값으로 설정
+      prev3DViewRef.current = is3DView;
 
       setMapLoaded(false);
       setTimeout(() => setMapLoaded(true), 100);
@@ -249,7 +258,10 @@ const useMapStyle = ({
     prev3DViewRef.current = is3DView;
 
     if (is3DView) {
-      map.current.easeTo({ pitch: 60, bearing: -30, duration: 1000 });
+      // 이미 틸트된 상태(피치 리스너에 의한 전환)면 애니메이션 스킵
+      if (map.current.getPitch() < 10) {
+        map.current.easeTo({ pitch: 60, bearing: -30, duration: 1000 });
+      }
       // Terrain 활성화 (스타일 리로드 없이 3D 전환 시에도 동작하도록)
       if (!map.current.getSource('mapbox-dem')) {
         map.current.addSource('mapbox-dem', {
@@ -283,10 +295,39 @@ const useMapStyle = ({
         // composite source not available
       }
     } else {
-      map.current.easeTo({ pitch: 0, bearing: 0, duration: 1000 });
+      // 이미 평면 상태(피치 리스너에 의한 전환)면 애니메이션 스킵
+      if (map.current.getPitch() > 5) {
+        map.current.easeTo({ pitch: 0, bearing: 0, duration: 1000 });
+      }
       map.current.setTerrain(null);
     }
   }, [map, is3DView, mapLoaded, showTerrain, show3DAltitude]);
+
+  // 피치 변화에 따른 2D/3D 자동 전환
+  useEffect(() => {
+    if (!map?.current || !mapLoaded) return;
+
+    const PITCH_3D_THRESHOLD = 15; // pitch > 15 → 3D로 전환
+    const PITCH_2D_THRESHOLD = 5;  // pitch < 5 → 2D로 전환
+
+    const handlePitchEnd = () => {
+      if (!map.current) return;
+      const currentPitch = map.current.getPitch();
+
+      if (!is3DView && currentPitch > PITCH_3D_THRESHOLD) {
+        prev3DViewRef.current = true;
+        setIs3DView(true);
+      } else if (is3DView && currentPitch < PITCH_2D_THRESHOLD) {
+        prev3DViewRef.current = false;
+        setIs3DView(false);
+      }
+    };
+
+    map.current.on('pitchend', handlePitchEnd);
+    return () => {
+      map.current?.off('pitchend', handlePitchEnd);
+    };
+  }, [map, mapLoaded, is3DView, setIs3DView]);
 };
 
 export default useMapStyle;

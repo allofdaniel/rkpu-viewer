@@ -50,7 +50,7 @@ export default function useMapInit(
         tileSize: 512,
         maxzoom: 14
       });
-      map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
+      map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 2.5 });
 
       // Add sky layer
       map.current.addLayer({
@@ -69,7 +69,7 @@ export default function useMapInit(
         source: 'composite',
         'source-layer': 'building',
         type: 'fill-extrusion',
-        minzoom: 12,
+        minzoom: 10,
         paint: {
           'fill-extrusion-color': '#aaa',
           'fill-extrusion-height': ['get', 'height'],
