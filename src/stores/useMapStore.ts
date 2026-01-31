@@ -41,7 +41,7 @@ export type MapStore = MapState & MapActions;
 
 const useMapStore = create<MapStore>((set) => ({
   // View mode
-  is3DView: true,
+  is3DView: false,
   isDarkMode: true,
   showSatellite: false,
 
@@ -65,7 +65,7 @@ const useMapStore = create<MapStore>((set) => ({
 
   // Reset to defaults
   resetViewSettings: () => set({
-    is3DView: true,
+    is3DView: false,
     isDarkMode: true,
     showSatellite: false,
     showBuildings: true,
