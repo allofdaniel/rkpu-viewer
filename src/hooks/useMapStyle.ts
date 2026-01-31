@@ -31,7 +31,7 @@ const useMapStyle = ({
   show3DAltitude
 }: UseMapStyleOptions): void => {
   const prevStyleRef = useRef<string | null>(null);
-  const prev3DViewRef = useRef(is3DView);
+  const prev3DViewRef = useRef<boolean | null>(null);
 
   // Handle base style change (dark/light/satellite) - NOT black background
   useEffect(() => {
