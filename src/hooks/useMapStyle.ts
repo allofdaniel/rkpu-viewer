@@ -220,6 +220,7 @@ const useMapStyle = ({
       // 래스터 레이어 추가 (기본 지도 위, 커스텀 레이어 아래)
       if (!map.current.getLayer(layerId)) {
         const customLayerIds = [
+          '3d-buildings',
           'radar-black-overlay',
           'aircraft-3d', 'aircraft-2d', 'aircraft-labels',
           'aircraft-trails-3d', 'aircraft-trails-2d', 'trail-layer',
