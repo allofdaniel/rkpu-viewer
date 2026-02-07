@@ -256,7 +256,7 @@ function App() {
     notamLocationsOnMap, setNotamLocationsOnMap,
     fetchNotamData,
     notamHealth,
-  } = useNotamData(showNotamPanel);
+  } = useNotamData();
 
   // Weather layers hook
   useWeatherLayers(map, mapLoaded, weatherData, data, false, showLightning, lightningData, showSigmet, sigmetData);

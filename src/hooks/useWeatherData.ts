@@ -2,10 +2,20 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import type { MetarData } from '../utils/weather';
 import { logger } from '../utils/logger';
 
+// Weather Cache Duration (5분)
+const WEATHER_CACHE_DURATION = 5 * 60 * 1000;
+
 interface AirportInfo {
   lat: number;
   lon: number;
 }
+
+// Weather Memory Cache (module level for persistence)
+interface WeatherCacheEntry {
+  data: { metar: MetarData | null; taf: unknown; source: string };
+  timestamp: number;
+}
+let weatherMemoryCache: WeatherCacheEntry | null = null;
 
 export interface WeatherDataState {
   metar: MetarData | null;
@@ -63,8 +73,21 @@ export default function useWeatherData(
   const [sigmetData, setSigmetData] = useState<unknown>(null);
   const [llwsData, setLlwsData] = useState<unknown>(null);
 
+  // DO-278A 요구사항 추적: SRS-WX-001 (기상 데이터 관리)
   const fetchWeatherData = useCallback(async (): Promise<void> => {
     try {
+      // 캐시 확인 (5분 이내)
+      if (weatherMemoryCache && Date.now() - weatherMemoryCache.timestamp < WEATHER_CACHE_DURATION) {
+        logger.debug('Weather', `Cache hit, age: ${Math.round((Date.now() - weatherMemoryCache.timestamp) / 1000)}s`);
+        setWeatherData(weatherMemoryCache.data);
+        setWeatherHealth({
+          isConnected: true,
+          lastSuccessTime: weatherMemoryCache.timestamp,
+          source: weatherMemoryCache.data.source
+        });
+        return;
+      }
+
       // Always use proxy to avoid CORS issues (works in both dev and prod)
       const cacheBuster = `&_t=${Date.now()}`;
       const metarUrl = `/api/weather?type=metar${cacheBuster}`;
@@ -119,11 +142,21 @@ export default function useWeatherData(
       }
 
       if (metarData || tafData) {
-        setWeatherData({ metar: metarData, taf: tafData, source: usedFallback ? 'local-demo' : 'api' });
+        const source = usedFallback ? 'local-demo' : 'api';
+        const weatherDataObj = { metar: metarData, taf: tafData, source };
+
+        // 캐시에 저장
+        weatherMemoryCache = {
+          data: weatherDataObj,
+          timestamp: Date.now()
+        };
+        logger.debug('Weather', 'Cache saved');
+
+        setWeatherData(weatherDataObj);
         setWeatherHealth({
           isConnected: true,
           lastSuccessTime: Date.now(),
-          source: usedFallback ? 'local-demo' : 'api'
+          source
         });
       } else {
         setWeatherHealth(prev => ({ ...prev, isConnected: false }));

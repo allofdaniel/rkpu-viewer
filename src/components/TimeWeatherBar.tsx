@@ -1,8 +1,9 @@
 /**
  * TimeWeatherBar Component
  * 시간 및 날씨 표시 바
+ * DO-278A 요구사항 추적: SRS-UI-001 (사용자 인터페이스 표시)
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { formatUTC, formatKST } from '../utils/format';
 import type { MetarData, ParsedMetar } from '../utils/weather';
 import type { DataHealthStatus } from '../hooks/useAircraftData';
@@ -72,62 +73,67 @@ interface HealthIndicatorProps {
 }
 
 const HealthIndicator: React.FC<HealthIndicatorProps> = React.memo(({ dataHealth, weatherHealth, notamHealth }) => {
-  // ADS-B 상태
-  const adsbConnected = dataHealth?.isConnected ?? false;
-  const adsbCount = dataHealth?.aircraftCount ?? 0;
-  const adsbLastUpdate = dataHealth?.lastSuccessTime;
-  const adsbTimeSince = adsbLastUpdate ? Math.floor((Date.now() - adsbLastUpdate) / 1000) : null;
-  const adsbStale = adsbTimeSince !== null && adsbTimeSince > 30;
-
-  // METAR 상태
-  const metarConnected = weatherHealth?.isConnected ?? false;
-  const metarSource = weatherHealth?.source;
-  const metarLastUpdate = weatherHealth?.lastSuccessTime;
-  const metarTimeSince = metarLastUpdate ? Math.floor((Date.now() - metarLastUpdate) / 1000) : null;
-  const metarStale = metarTimeSince !== null && metarTimeSince > 600; // 10분 이상이면 stale
-
-  // NOTAM 상태
-  const notamConnected = notamHealth?.isConnected ?? false;
-  const notamCount = notamHealth?.notamCount ?? 0;
-  const notamSource = notamHealth?.source;
-  const notamLastUpdate = notamHealth?.lastSuccessTime;
-  const notamTimeSince = notamLastUpdate ? Math.floor((Date.now() - notamLastUpdate) / 1000) : null;
-  const notamStale = notamTimeSince !== null && notamTimeSince > 1800; // 30분 이상이면 stale
-
-  // 색상 결정
+  // 색상 결정 함수
   const getColor = (connected: boolean, stale: boolean) => {
     if (!connected) return '#ff4444';
     if (stale) return '#ffaa00';
     return '#00ff00';
   };
 
-  const adsbColor = getColor(adsbConnected, adsbStale);
-  const metarColor = getColor(metarConnected, metarStale);
-  const notamColor = getColor(notamConnected, notamStale);
+  // ADS-B 상태 (useMemo로 최적화)
+  const adsbStatus = useMemo(() => {
+    const connected = dataHealth?.isConnected ?? false;
+    const count = dataHealth?.aircraftCount ?? 0;
+    const lastUpdate = dataHealth?.lastSuccessTime ?? null;
+    const timeSince = lastUpdate ? Math.floor((Date.now() - lastUpdate) / 1000) : null;
+    const stale = timeSince !== null && timeSince > 30;
+    return { connected, count, lastUpdate, timeSince, stale, color: getColor(connected, stale) };
+  }, [dataHealth]);
+
+  // METAR 상태 (useMemo로 최적화)
+  const metarStatus = useMemo(() => {
+    const connected = weatherHealth?.isConnected ?? false;
+    const source = weatherHealth?.source ?? null;
+    const lastUpdate = weatherHealth?.lastSuccessTime ?? null;
+    const timeSince = lastUpdate ? Math.floor((Date.now() - lastUpdate) / 1000) : null;
+    const stale = timeSince !== null && timeSince > 600; // 10분 이상이면 stale
+    return { connected, source, lastUpdate, timeSince, stale, color: getColor(connected, stale) };
+  }, [weatherHealth]);
+
+  // NOTAM 상태 (useMemo로 최적화)
+  const notamStatus = useMemo(() => {
+    const connected = notamHealth?.isConnected ?? false;
+    const count = notamHealth?.notamCount ?? 0;
+    const source = notamHealth?.source ?? null;
+    const lastUpdate = notamHealth?.lastSuccessTime ?? null;
+    const timeSince = lastUpdate ? Math.floor((Date.now() - lastUpdate) / 1000) : null;
+    const stale = timeSince !== null && timeSince > 1800; // 30분 이상이면 stale
+    return { connected, count, source, lastUpdate, timeSince, stale, color: getColor(connected, stale) };
+  }, [notamHealth]);
 
   return (
     <div className="health-indicator">
       {/* ADS-B 상태 */}
       <div
         className="health-item"
-        title={`ADS-B 피드\n항공기: ${adsbCount}대\n${adsbLastUpdate ? `업데이트: ${adsbTimeSince}초 전` : '대기 중'}`}
+        title={`ADS-B 피드\n항공기: ${adsbStatus.count}대\n${adsbStatus.lastUpdate ? `업데이트: ${adsbStatus.timeSince}초 전` : '대기 중'}`}
       >
         <span
           className="health-dot"
-          style={{ backgroundColor: adsbColor, boxShadow: `0 0 6px ${adsbColor}` }}
+          style={{ backgroundColor: adsbStatus.color, boxShadow: `0 0 6px ${adsbStatus.color}` }}
         />
         <span className="health-label">ADS-B</span>
-        <span className="health-count">{adsbCount}</span>
+        <span className="health-count">{adsbStatus.count}</span>
       </div>
 
       {/* METAR 상태 */}
       <div
         className="health-item"
-        title={`METAR 데이터\n소스: ${metarSource || '없음'}\n${metarLastUpdate ? `업데이트: ${Math.floor(metarTimeSince! / 60)}분 전` : '대기 중'}`}
+        title={`METAR 데이터\n소스: ${metarStatus.source || '없음'}\n${metarStatus.timeSince !== null ? `업데이트: ${Math.floor(metarStatus.timeSince / 60)}분 전` : '대기 중'}`}
       >
         <span
           className="health-dot"
-          style={{ backgroundColor: metarColor, boxShadow: `0 0 6px ${metarColor}` }}
+          style={{ backgroundColor: metarStatus.color, boxShadow: `0 0 6px ${metarStatus.color}` }}
         />
         <span className="health-label">WX</span>
       </div>
@@ -135,11 +141,11 @@ const HealthIndicator: React.FC<HealthIndicatorProps> = React.memo(({ dataHealth
       {/* NOTAM 상태 */}
       <div
         className="health-item"
-        title={`NOTAM 데이터\n${notamCount}건\n소스: ${notamSource || '없음'}\n${notamLastUpdate ? `업데이트: ${Math.floor(notamTimeSince! / 60)}분 전` : '대기 중'}`}
+        title={`NOTAM 데이터\n${notamStatus.count}건\n소스: ${notamStatus.source || '없음'}\n${notamStatus.timeSince !== null ? `업데이트: ${Math.floor(notamStatus.timeSince / 60)}분 전` : '대기 중'}`}
       >
         <span
           className="health-dot"
-          style={{ backgroundColor: notamColor, boxShadow: `0 0 6px ${notamColor}` }}
+          style={{ backgroundColor: notamStatus.color, boxShadow: `0 0 6px ${notamStatus.color}` }}
         />
         <span className="health-label">NOTAM</span>
       </div>
@@ -163,8 +169,9 @@ TimeDisplay.displayName = 'TimeDisplay';
 
 /**
  * Weather Compact Display
+ * DO-278A 요구사항 추적: SRS-WX-001 (기상정보 표시)
  */
-const WeatherCompact: React.FC<WeatherCompactProps> = ({
+const WeatherCompact: React.FC<WeatherCompactProps> = React.memo(({
   weatherData,
   metarPinned,
   setMetarPinned,
@@ -229,12 +236,14 @@ const WeatherCompact: React.FC<WeatherCompactProps> = ({
       )}
     </div>
   );
-};
+});
+WeatherCompact.displayName = 'WeatherCompact';
 
 /**
  * METAR Popup
+ * DO-278A 요구사항 추적: SRS-WX-002 (METAR 상세 표시)
  */
-const MetarPopup: React.FC<MetarPopupProps> = ({ weatherData, showMetarPopup, metarPinned, parseMetar }) => {
+const MetarPopup: React.FC<MetarPopupProps> = React.memo(({ weatherData, showMetarPopup, metarPinned, parseMetar }) => {
   if (!(showMetarPopup || metarPinned) || !weatherData?.metar) return null;
 
   const parsedMetar = parseMetar(weatherData.metar);
@@ -258,12 +267,14 @@ const MetarPopup: React.FC<MetarPopupProps> = ({ weatherData, showMetarPopup, me
       <div className="metar-raw-line">{weatherData.metar.rawOb}</div>
     </div>
   );
-};
+});
+MetarPopup.displayName = 'MetarPopup';
 
 /**
  * TAF Popup
+ * DO-278A 요구사항 추적: SRS-WX-003 (TAF 상세 표시)
  */
-const TafPopup: React.FC<TafPopupProps> = ({ weatherData, showTafPopup, tafPinned }) => {
+const TafPopup: React.FC<TafPopupProps> = React.memo(({ weatherData, showTafPopup, tafPinned }) => {
   if (!(showTafPopup || tafPinned) || !weatherData?.taf) return null;
 
   return (
@@ -274,7 +285,8 @@ const TafPopup: React.FC<TafPopupProps> = ({ weatherData, showTafPopup, tafPinne
       </div>
     </div>
   );
-};
+});
+TafPopup.displayName = 'TafPopup';
 
 /**
  * Time Weather Bar Component

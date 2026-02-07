@@ -73,11 +73,17 @@ export interface UseNotamDataReturn {
   setNotamExpanded: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   notamLocationsOnMap: Set<string>;
   setNotamLocationsOnMap: React.Dispatch<React.SetStateAction<Set<string>>>;
-  fetchNotamData: (period?: string, forceRefresh?: boolean) => Promise<void>;
+  fetchNotamData: (period: string, forceRefresh?: boolean) => Promise<void>;
   notamHealth: NotamHealthStatus;
 }
 
-export default function useNotamData(showNotamPanel: boolean): UseNotamDataReturn {
+/**
+ * DO-278A 요구사항 추적: SRS-DATA-001 (NOTAM 데이터 관리)
+ * - 메모리 캐시 관리 (10분 유효)
+ * - 자동 데이터 fetching
+ * - 기간별 필터링
+ */
+export default function useNotamData(): UseNotamDataReturn {
   const [notamData, setNotamData] = useState<NotamData | null>(null);
   const [notamLoading, setNotamLoading] = useState(false);
   const [notamError, setNotamError] = useState<string | null>(null);
@@ -95,7 +101,8 @@ export default function useNotamData(showNotamPanel: boolean): UseNotamDataRetur
   });
 
   // NOTAM data fetching with caching - always use complete DB with period filtering
-  const fetchNotamData = useCallback(async (period: string = notamPeriod, forceRefresh = false): Promise<void> => {
+  // DO-278A 요구사항 추적: SRS-DATA-002 (캐시 및 폴백 처리)
+  const fetchNotamData = useCallback(async (period: string, forceRefresh = false): Promise<void> => {
     // 1. 먼저 캐시 확인 (강제 새로고침이 아닌 경우)
     if (!forceRefresh) {
       const cachedData = getNotamCache(period);
@@ -211,13 +218,14 @@ export default function useNotamData(showNotamPanel: boolean): UseNotamDataRetur
     } finally {
       setNotamLoading(false);
     }
-  }, [notamPeriod]);
+  }, []); // dependency 제거 - period는 인자로 전달
 
   // Fetch NOTAM on page load and when period changes
+  // DO-278A 요구사항 추적: SRS-DATA-003 (자동 데이터 로드)
   useEffect(() => {
     // 페이지 로드 시 자동으로 NOTAM 데이터 fetch
     fetchNotamData(notamPeriod);
-  }, [notamPeriod, fetchNotamData]);
+  }, [notamPeriod]); // fetchNotamData 제거 - 무한 루프 방지
 
   return {
     notamData,
