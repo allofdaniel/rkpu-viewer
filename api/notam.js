@@ -254,7 +254,7 @@ export default async function handler(req, res) {
   // DO-278A SRS-SEC-002: CORS
   if (setCorsHeaders(req, res)) return;
   // DO-278A SRS-SEC-003: Rate Limiting
-  if (checkRateLimit(req, res)) return;
+  if (await checkRateLimit(req, res)) return;
 
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);

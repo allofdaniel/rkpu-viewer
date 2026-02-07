@@ -31,7 +31,7 @@ export default async function handler(req, res) {
   }
 
   // DO-278A SRS-SEC-003: Rate Limiting
-  if (checkRateLimit(req, res)) {
+  if (await checkRateLimit(req, res)) {
     return; // Rate limit exceeded
   }
 

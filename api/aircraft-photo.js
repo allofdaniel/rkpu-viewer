@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   // DO-278A SRS-SEC-002: Use secure CORS headers
   if (setCorsHeaders(req, res)) return;
   // DO-278A SRS-SEC-003: Rate Limiting
-  if (checkRateLimit(req, res)) return;
+  if (await checkRateLimit(req, res)) return;
 
   const { hex, reg } = req.query;
 

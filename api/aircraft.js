@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   // DO-278A SRS-SEC-002: CORS 처리 (강화된 버전)
   if (setCorsHeaders(req, res)) return;
   // DO-278A SRS-SEC-003: Rate Limiting
-  if (checkRateLimit(req, res)) return;
+  if (await checkRateLimit(req, res)) return;
 
   res.setHeader('Cache-Control', 's-maxage=2, stale-while-revalidate=5');
 
