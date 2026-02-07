@@ -39,6 +39,12 @@ import { AIRPORT_COORDINATES } from '@/config/airports';
 // Hooks
 import { useGIS } from '@/presentation/hooks/useGIS';
 
+// Components
+import TimeWeatherBar from '@/components/TimeWeatherBar';
+
+// Utils
+import { parseMetar, parseMetarTime } from '@/utils/weather';
+
 // Error Boundary
 import ErrorBoundary from '@/components/ErrorBoundary';
 
@@ -107,6 +113,19 @@ function RKPUViewer() {
   const [selectedChartTypes, setSelectedChartTypes] = useState<string[]>(['ADC', 'IAC', 'VAC']);
   const [chartOpacity, setChartOpacity] = useState(0.7);
   const [charts, setCharts] = useState<ChartData[]>([]);
+
+  // TimeWeatherBar state
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [showMetarPopup, setShowMetarPopup] = useState(false);
+  const [metarPinned, setMetarPinned] = useState(false);
+  const [showTafPopup, setShowTafPopup] = useState(false);
+  const [tafPinned, setTafPinned] = useState(false);
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Android WebView 높이 계산
   const windowHeight = useWindowHeight();
@@ -304,27 +323,50 @@ function RKPUViewer() {
         </ToolbarButton>
       </div>
 
-      {/* 상태 표시 */}
+      {/* 상단 시간/기상 바 */}
       <div
         style={{
           position: 'absolute',
           top: '16px',
           right: '60px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          padding: '8px 16px',
-          borderRadius: '8px',
-          color: '#fff',
-          fontSize: '12px',
           zIndex: 100,
         }}
       >
-        <span>
-          Aircraft: <strong>{aircraft.length}</strong>
-        </span>
-        {isGISLoading && <span style={{ color: '#FF9800' }}>Loading GIS...</span>}
+        <TimeWeatherBar
+          currentTime={currentTime}
+          weatherData={metar || taf ? { metar: metar as any, taf: taf ? { rawTAF: (taf as any).rawTAF || (taf as any).raw || '' } : null } : null}
+          showMetarPopup={showMetarPopup}
+          setShowMetarPopup={setShowMetarPopup}
+          metarPinned={metarPinned}
+          setMetarPinned={setMetarPinned}
+          showTafPopup={showTafPopup}
+          setShowTafPopup={setShowTafPopup}
+          tafPinned={tafPinned}
+          setTafPinned={setTafPinned}
+          parseMetar={parseMetar as any}
+          parseMetarTime={parseMetarTime as any}
+        />
+      </div>
+
+      {/* 항공기 수 표시 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '60px',
+          right: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          padding: '6px 12px',
+          borderRadius: '6px',
+          color: '#fff',
+          fontSize: '11px',
+          zIndex: 100,
+        }}
+      >
+        <span>AC: <strong>{aircraft.length}</strong></span>
+        {isGISLoading && <span style={{ color: '#FF9800' }}>GIS...</span>}
       </div>
 
       {/* 컨트롤 패널 */}

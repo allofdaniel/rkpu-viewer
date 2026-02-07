@@ -1,21 +1,27 @@
 import { setCorsHeaders, checkRateLimit } from './_utils/cors.js';
 
-// Parse NOTAM Q-line coordinates (e.g., "3505N12804E005" -> {lat, lon})
+// ============================================================
+// Supabase 설정
+// ============================================================
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ugzsuswrazaimvpyloqw.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const SUPABASE_PUBLIC = `${SUPABASE_URL}/storage/v1/object/public/notam-data`;
+
+// ============================================================
+// 유틸리티 함수
+// ============================================================
+
 function parseNotamCoordinates(fullText) {
   if (!fullText) return null;
-  // Q-line format: Q) FIR/QCODE/TRAFFIC/PURPOSE/SCOPE/LOWER/UPPER/COORD
   const qLineMatch = fullText.match(/Q\)\s*\S+\/\S+\/\S+\/\S+\/\S+\/\d{3}\/\d{3}\/(\d{4})([NS])(\d{5})([EW])\d{3}/);
   if (!qLineMatch) return null;
 
   const [, latDeg, latDir, lonDeg, lonDir] = qLineMatch;
-
-  // Parse latitude: DDMM format
   const latDegrees = parseInt(latDeg.substring(0, 2), 10);
   const latMinutes = parseInt(latDeg.substring(2, 4), 10);
   let lat = latDegrees + latMinutes / 60;
   if (latDir === 'S') lat = -lat;
 
-  // Parse longitude: DDDMM format
   const lonDegrees = parseInt(lonDeg.substring(0, 3), 10);
   const lonMinutes = parseInt(lonDeg.substring(3, 5), 10);
   let lon = lonDegrees + lonMinutes / 60;
@@ -24,9 +30,8 @@ function parseNotamCoordinates(fullText) {
   return { lat, lon };
 }
 
-// Check if a point is within bounds (with margin for NOTAM radius)
 function isInBounds(lat, lon, bounds, margin = 1) {
-  if (!bounds || !lat || !lon) return true; // No bounds = include all
+  if (!bounds || !lat || !lon) return true;
   return (
     lat >= bounds.south - margin &&
     lat <= bounds.north + margin &&
@@ -35,7 +40,6 @@ function isInBounds(lat, lon, bounds, margin = 1) {
   );
 }
 
-// Parse NOTAM date from Item B or C (format: YYMMDDHHMM or YYMMDD)
 function parseNotamDate(dateStr) {
   if (!dateStr || dateStr.length < 6) return null;
   const year = 2000 + parseInt(dateStr.substring(0, 2), 10);
@@ -46,61 +50,119 @@ function parseNotamDate(dateStr) {
   return new Date(year, month, day, hour, minute);
 }
 
-// Extract start/end dates from NOTAM full_text
 function extractNotamDates(fullText) {
   if (!fullText) return { start: null, end: null };
-
-  // Item B: start date (B) YYMMDDHHMM)
   const startMatch = fullText.match(/B\)\s*(\d{10})/);
   const start = startMatch ? parseNotamDate(startMatch[1]) : null;
-
-  // Item C: end date (C) YYMMDDHHMM or PERM or EST)
   const endMatch = fullText.match(/C\)\s*(\d{10}|PERM)/);
   let end = null;
   if (endMatch) {
-    if (endMatch[1] === 'PERM') {
-      end = new Date(2099, 11, 31); // Permanent = far future
-    } else {
-      end = parseNotamDate(endMatch[1]);
-    }
+    end = endMatch[1] === 'PERM' ? new Date(2099, 11, 31) : parseNotamDate(endMatch[1]);
   }
-
   return { start, end };
 }
 
-// Check if NOTAM is valid within period range
 function isValidInPeriod(notam, period) {
   if (!period || period === 'all') return true;
-
   const now = new Date();
   const { start, end } = extractNotamDates(notam.full_text);
 
-  let periodStart, periodEnd;
-
   if (period === 'current') {
-    // Currently valid: start <= now AND (end >= now OR end is null/PERM)
-    if (start && start > now) return false; // Not started yet
-    if (end && end < now) return false; // Already expired
+    if (start && start > now) return false;
+    if (end && end < now) return false;
     return true;
-  } else if (period === '1month') {
-    periodStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  }
+
+  let periodStart, periodEnd;
+  if (period === '1month') {
+    periodStart = new Date(now.getTime() - 30 * 86400000);
+    periodEnd = new Date(now.getTime() + 30 * 86400000);
   } else if (period === '1year') {
-    periodStart = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-    periodEnd = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+    periodStart = new Date(now.getTime() - 365 * 86400000);
+    periodEnd = new Date(now.getTime() + 365 * 86400000);
   } else {
     return true;
   }
 
-  // NOTAM is valid if its validity period overlaps with our period range
-  // (start <= periodEnd) AND (end >= periodStart OR end is null/PERM)
-  if (start && start > periodEnd) return false; // Starts after our period
-  if (end && end < periodStart) return false; // Ended before our period
-
+  if (start && start > periodEnd) return false;
+  if (end && end < periodStart) return false;
   return true;
 }
 
-// Transform AIM Korea NOTAM item to frontend format
+// ============================================================
+// 방식 1: Supabase PostgREST DB 쿼리
+// ============================================================
+
+async function fetchFromDatabase(params) {
+  const { limit, period, bounds } = params;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('select', 'notam_number,location,full_text,e_text,qcode,qcode_mean,effective_start,effective_end,series,fir,q_lat,q_lon,q_radius_nm,crawled_at');
+  queryParams.set('order', 'crawled_at.desc,notam_number.desc');
+  queryParams.set('limit', String(limit > 0 ? limit : 2000));
+
+  // 영역 필터 (좌표 있는 것 + 없는 것 모두 포함)
+  if (bounds) {
+    queryParams.set(
+      'or',
+      `(and(q_lat.gte.${bounds.south - 1},q_lat.lte.${bounds.north + 1},q_lon.gte.${bounds.west - 1},q_lon.lte.${bounds.east + 1}),q_lat.is.null)`
+    );
+  }
+
+  const url = `${SUPABASE_URL}/rest/v1/notams?${queryParams.toString()}`;
+  const response = await fetch(url, {
+    headers: {
+      'apikey': SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Accept': 'application/json',
+      'Prefer': 'count=exact'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`PostgREST error: ${response.status} ${response.statusText}`);
+  }
+
+  const contentRange = response.headers.get('content-range');
+  const totalCount = contentRange ? parseInt(contentRange.split('/')[1], 10) : 0;
+
+  let notamData = await response.json();
+
+  // DB 레코드 → 프론트엔드 포맷
+  notamData = notamData.map(row => ({
+    notam_number: row.notam_number,
+    location: row.location,
+    full_text: row.full_text,
+    e_text: row.e_text,
+    qcode: row.qcode,
+    qcode_mean: row.qcode_mean,
+    effective_start: row.effective_start,
+    effective_end: row.effective_end,
+    series: row.series,
+    fir: row.fir,
+    q_lat: row.q_lat,
+    q_lon: row.q_lon,
+    q_radius: row.q_radius_nm,
+  }));
+
+  // 기간 필터
+  const beforePeriod = notamData.length;
+  if (period && period !== 'all') {
+    notamData = notamData.filter(n => isValidInPeriod(n, period));
+  }
+
+  return {
+    data: notamData,
+    count: totalCount || beforePeriod,
+    afterPeriodFilter: notamData.length,
+    source: 'database',
+  };
+}
+
+// ============================================================
+// 방식 2: Supabase Storage 폴백 (기존 방식)
+// ============================================================
+
 function transformAimNotam(item) {
   return {
     notam_number: item.NOTAM_NO || '',
@@ -116,10 +178,8 @@ function transformAimNotam(item) {
   };
 }
 
-// Flatten AIM Korea grouped data into a flat NOTAM array
 function flattenAimData(aimData) {
   const items = [];
-  // Domestic NOTAMs (grouped by series: A, C, D, E, G, Z)
   if (aimData.domestic) {
     for (const seriesItems of Object.values(aimData.domestic)) {
       if (Array.isArray(seriesItems)) {
@@ -127,7 +187,6 @@ function flattenAimData(aimData) {
       }
     }
   }
-  // International NOTAMs (grouped by airport: RKSI, RKSS, ...)
   if (aimData.international) {
     for (const airportItems of Object.values(aimData.international)) {
       if (Array.isArray(airportItems)) {
@@ -135,33 +194,73 @@ function flattenAimData(aimData) {
       }
     }
   }
-  // SNOWTAM
   if (Array.isArray(aimData.snowtam)) {
     for (const item of aimData.snowtam) items.push(transformAimNotam(item));
   }
   return items;
 }
 
-export default async function handler(req, res) {
-  // DO-278A SRS-SEC-002: Use secure CORS headers
-  if (setCorsHeaders(req, res)) {
-    return; // Preflight request handled
+async function fetchFromStorage(params) {
+  const { limit, period, bounds } = params;
+
+  const today = new Date().toISOString().split('T')[0];
+  let latestPath = `notam_realtime/${today}/notam_latest.json`;
+  let fileUrl = `${SUPABASE_PUBLIC}/${latestPath}`;
+  let response = await fetch(fileUrl);
+
+  if (!response.ok) {
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    latestPath = `notam_realtime/${yesterday}/notam_latest.json`;
+    fileUrl = `${SUPABASE_PUBLIC}/${latestPath}`;
+    response = await fetch(fileUrl);
   }
 
-  // DO-278A SRS-SEC-003: Rate Limiting
-  if (checkRateLimit(req, res)) {
-    return; // Rate limit exceeded
+  if (!response.ok) {
+    return { data: [], count: 0, source: 'storage', message: 'No NOTAM data found' };
   }
+
+  const aimData = await response.json();
+  let notamData = flattenAimData(aimData);
+  const totalCount = notamData.length;
+
+  if (period && period !== 'all') {
+    notamData = notamData.filter(n => isValidInPeriod(n, period));
+  }
+  const afterPeriodCount = notamData.length;
+
+  if (bounds) {
+    notamData = notamData.filter(notam => {
+      const coords = parseNotamCoordinates(notam.full_text);
+      if (!coords) return false;
+      return isInBounds(coords.lat, coords.lon, bounds);
+    });
+  }
+
+  return {
+    data: notamData,
+    count: totalCount,
+    afterPeriodFilter: afterPeriodCount,
+    source: 'storage',
+    file: latestPath,
+    crawled_at: aimData.crawled_at || null,
+  };
+}
+
+// ============================================================
+// API Handler
+// ============================================================
+
+export default async function handler(req, res) {
+  // DO-278A SRS-SEC-002: CORS
+  if (setCorsHeaders(req, res)) return;
+  // DO-278A SRS-SEC-003: Rate Limiting
+  if (checkRateLimit(req, res)) return;
 
   try {
-    const SUPABASE_PUBLIC = 'https://lxbdegbsriisiekvnpbk.supabase.co/storage/v1/object/public/notam-data';
-
-    // Check query parameters
     const url = new URL(req.url, `http://${req.headers.host}`);
     const limit = parseInt(url.searchParams.get('limit')) || 0;
     const period = url.searchParams.get('period') || 'all';
 
-    // Bounds filtering (south,west,north,east)
     const boundsParam = url.searchParams.get('bounds');
     let bounds = null;
     if (boundsParam) {
@@ -171,45 +270,26 @@ export default async function handler(req, res) {
       }
     }
 
-    // Fetch latest NOTAM data from Supabase Storage (public bucket)
-    const today = new Date().toISOString().split('T')[0];
-    let latestPath = `notam_realtime/${today}/notam_latest.json`;
-    let fileUrl = `${SUPABASE_PUBLIC}/${latestPath}`;
+    const params = { limit, period, bounds };
+    let result;
 
-    let response = await fetch(fileUrl);
-
-    // Fallback to yesterday if today's data not found
-    if (!response.ok) {
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-      latestPath = `notam_realtime/${yesterday}/notam_latest.json`;
-      fileUrl = `${SUPABASE_PUBLIC}/${latestPath}`;
-      response = await fetch(fileUrl);
+    // DB 우선 → Storage 폴백
+    if (SUPABASE_SERVICE_KEY) {
+      try {
+        result = await fetchFromDatabase(params);
+        // DB에 데이터가 없으면 Storage 폴백
+        if (result.data.length === 0) {
+          result = await fetchFromStorage(params);
+        }
+      } catch (dbError) {
+        console.warn('DB query failed, falling back to Storage:', dbError.message);
+        result = await fetchFromStorage(params);
+      }
+    } else {
+      result = await fetchFromStorage(params);
     }
 
-    if (!response.ok) {
-      return res.status(200).json({ data: [], count: 0, source: 'supabase', message: 'No NOTAM data found' });
-    }
-
-    const aimData = await response.json();
-
-    // Flatten AIM Korea grouped format into flat array with frontend field names
-    let notamData = flattenAimData(aimData);
-    const totalCount = notamData.length;
-
-    // Filter by period
-    if (period && period !== 'all') {
-      notamData = notamData.filter(notam => isValidInPeriod(notam, period));
-    }
-    const afterPeriodCount = notamData.length;
-
-    // Filter by bounds if specified
-    if (bounds) {
-      notamData = notamData.filter(notam => {
-        const coords = parseNotamCoordinates(notam.full_text);
-        if (!coords) return false;
-        return isInBounds(coords.lat, coords.lon, bounds);
-      });
-    }
+    let { data: notamData, ...meta } = result;
 
     const filteredCount = notamData.length;
     if (limit > 0 && notamData.length > limit) {
@@ -218,25 +298,18 @@ export default async function handler(req, res) {
 
     res.status(200).json({
       data: notamData,
-      count: totalCount,
-      afterPeriodFilter: afterPeriodCount,
+      ...meta,
       filtered: filteredCount,
       returned: notamData.length,
-      source: 'supabase',
-      period: period,
-      bounds: bounds,
-      file: latestPath,
-      crawled_at: aimData.crawled_at || null,
+      period,
+      bounds,
     });
   } catch (error) {
     console.error('NOTAM fetch error:', error.message);
-
     res.status(500).json({
       error: 'NOTAM service temporarily unavailable',
       code: 'NOTAM_ERROR',
-      ...(process.env.NODE_ENV === 'development' && {
-        details: error.message,
-      })
+      ...(process.env.NODE_ENV === 'development' && { details: error.message }),
     });
   }
 }

@@ -213,12 +213,11 @@ export default function useNotamData(showNotamPanel: boolean): UseNotamDataRetur
     }
   }, [notamPeriod]);
 
-  // Fetch NOTAM when panel is opened or period changes
+  // Fetch NOTAM on page load and when period changes
   useEffect(() => {
-    if (showNotamPanel) {
-      fetchNotamData(notamPeriod);
-    }
-  }, [showNotamPanel, notamPeriod, fetchNotamData]);
+    // 페이지 로드 시 자동으로 NOTAM 데이터 fetch
+    fetchNotamData(notamPeriod);
+  }, [notamPeriod, fetchNotamData]);
 
   return {
     notamData,

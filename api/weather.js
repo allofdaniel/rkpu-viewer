@@ -37,13 +37,13 @@ export default async function handler(req, res) {
 
   const type = req.query.type || 'metar';
 
-  // KMA API 키가 필요한 엔드포인트 목록
+  // KMA API 키가 반드시 필요한 엔드포인트 (aviationweather.gov 대체 불가)
   const kmaRequiredTypes = [
-    'metar', 'amos', 'kma_metar', 'kma_taf', 'kma_sigmet', 'kma_airmet',
+    'kma_metar', 'kma_taf', 'kma_sigmet', 'kma_airmet',
     'warning', 'llws', 'sigwx', 'radar', 'satellite', 'lightning'
   ];
 
-  // KMA API 키 검증 (필요한 경우)
+  // KMA API 키 검증 (필요한 경우) - metar/amos/taf는 aviationweather.gov 사용 가능
   if (kmaRequiredTypes.includes(type) && !KMA_API_KEY) {
     console.error('[TBAS Weather API] KMA_API_KEY not configured for:', type);
     return res.status(503).json({
@@ -102,23 +102,67 @@ export default async function handler(req, res) {
   }
 }
 
-// AMOS - 공항기상관측
+// AMOS - 공항기상관측 (aviationweather.gov 우선, KMA 폴백)
 async function handleAmos(req, res) {
-  const now = new Date();
-  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000 - 5 * 60 * 1000);
-  const tm = kstNow.toISOString().slice(0, 16).replace(/[-T:]/g, '').slice(0, 12);
+  let metar = null;
 
-  const amosUrl = `https://apihub.kma.go.kr/api/typ01/url/amos.php?tm=${tm}&stn=${ULSAN_STN}&authKey=${KMA_API_KEY}`;
-  const amosRes = await fetch(amosUrl);
-  const amosText = await amosRes.text();
-  let metar = parseKmaAmos(amosText);
+  // 1. aviationweather.gov 먼저 시도 (API 키 불필요)
+  // RKPU(울산)는 데이터가 없으므로 RKPK(김해)도 함께 요청
+  try {
+    const metarUrl = `https://aviationweather.gov/api/data/metar?ids=RKPU,RKPK&format=json`;
+    const response = await fetch(metarUrl);
+    if (response.ok) {
+      const metarJson = await response.json();
+      if (metarJson && metarJson.length > 0) {
+        // RKPU(울산) 우선, 없으면 RKPK(김해) 사용
+        const raw = metarJson.find(m => m.icaoId === 'RKPU') || metarJson[0];
+        metar = {
+          icaoId: raw.icaoId || 'RKPU',
+          obsTime: raw.reportTime || raw.obsTime,
+          temp: raw.temp,
+          dewp: raw.dewp,
+          humidity: raw.humidity,
+          altim: raw.altim,
+          wdir: raw.wdir,
+          wspd: raw.wspd,
+          wspdMs: raw.wspd ? (raw.wspd * 0.514444).toFixed(1) : null,
+          wgst: raw.wgst,
+          visib: raw.visib,
+          visibM: raw.visib ? Math.round(raw.visib * 1609.34) : null,
+          ceiling: raw.clouds?.[0]?.base || null,
+          fltCat: raw.fltCat || 'VFR',
+          rawOb: raw.rawOb,
+          source: 'aviationweather.gov'
+        };
+        console.log('[Weather API] METAR from aviationweather.gov');
+      }
+    }
+  } catch (e) {
+    console.warn('[Weather API] aviationweather.gov failed:', e.message);
+  }
 
-  if (!metar) {
-    const utcTm = now.toISOString().slice(0, 16).replace(/[-T:]/g, '').slice(0, 12);
-    const metarDecUrl = `https://apihub.kma.go.kr/api/typ01/url/air_metar_dec.php?tm=${utcTm}&org=K&authKey=${KMA_API_KEY}`;
-    const metarRes = await fetch(metarDecUrl);
-    const metarText = await metarRes.text();
-    metar = parseKmaMetarDec(metarText, ULSAN_STN);
+  // 2. KMA AMOS 폴백 (API 키가 있는 경우)
+  if (!metar && KMA_API_KEY) {
+    try {
+      const now = new Date();
+      const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000 - 5 * 60 * 1000);
+      const tm = kstNow.toISOString().slice(0, 16).replace(/[-T:]/g, '').slice(0, 12);
+
+      const amosUrl = `https://apihub.kma.go.kr/api/typ01/url/amos.php?tm=${tm}&stn=${ULSAN_STN}&authKey=${KMA_API_KEY}`;
+      const amosRes = await fetch(amosUrl);
+      const amosText = await amosRes.text();
+      metar = parseKmaAmos(amosText);
+
+      if (!metar) {
+        const utcTm = now.toISOString().slice(0, 16).replace(/[-T:]/g, '').slice(0, 12);
+        const metarDecUrl = `https://apihub.kma.go.kr/api/typ01/url/air_metar_dec.php?tm=${utcTm}&org=K&authKey=${KMA_API_KEY}`;
+        const metarRes = await fetch(metarDecUrl);
+        const metarText = await metarRes.text();
+        metar = parseKmaMetarDec(metarText, ULSAN_STN);
+      }
+    } catch (e) {
+      console.warn('[Weather API] KMA AMOS failed:', e.message);
+    }
   }
 
   res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=30');

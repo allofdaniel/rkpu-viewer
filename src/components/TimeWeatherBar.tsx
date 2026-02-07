@@ -179,9 +179,13 @@ const WeatherCompact: React.FC<WeatherCompactProps> = ({
 
   const parsedMetar = parseMetar(weatherData.metar);
 
+  // 공항 코드 (RKPU, RKPK 등)
+  const airportCode = weatherData.metar.icaoId || 'RKPU';
+
   return (
     <div className="weather-compact">
       <span className="wx-label">METAR</span>
+      <span className="wx-airport" title={`기상 데이터 출처: ${airportCode}`}>{airportCode}</span>
       <span className={`wx-cat ${weatherData.metar.fltCat?.toLowerCase() || 'vfr'}`}>
         {weatherData.metar.fltCat || 'VFR'}
       </span>
@@ -295,8 +299,10 @@ const TimeWeatherBar: React.FC<TimeWeatherBarProps> = React.memo(({
 }) => {
   return (
     <div className="time-weather-display">
-      <TimeDisplay currentTime={currentTime} />
-      <HealthIndicator dataHealth={dataHealth} weatherHealth={weatherHealth} notamHealth={notamHealth} />
+      <div className="time-health-row">
+        <TimeDisplay currentTime={currentTime} />
+        <HealthIndicator dataHealth={dataHealth} weatherHealth={weatherHealth} notamHealth={notamHealth} />
+      </div>
       <WeatherCompact
         weatherData={weatherData}
         metarPinned={metarPinned}
