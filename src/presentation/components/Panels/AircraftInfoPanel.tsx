@@ -43,7 +43,7 @@ export function AircraftInfoPanel({
       setIsLoadingPhoto(true);
       try {
         const repo = getAircraftRepository();
-        const url = await repo.fetchPhotoUrl(aircraft.registration!);
+        const url = await repo.fetchPhotoUrl(aircraft.hex, aircraft.registration!);
         // 취소되지 않았을 때만 상태 업데이트
         if (!cancelled) {
           setPhotoUrl(url);

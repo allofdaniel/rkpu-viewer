@@ -101,6 +101,18 @@ export function MapContainer({
       }
 
       setMapLoaded(true);
+
+      // Context Menu 이벤트 등록 (우클릭)
+      map.on('contextmenu', (e) => {
+        console.log('[MapContainer] Right-click detected!', e.lngLat);
+        // 커스텀 이벤트 발생
+        window.dispatchEvent(new CustomEvent('map-contextmenu', {
+          detail: {
+            lngLat: e.lngLat,
+            point: e.point
+          }
+        }));
+      });
     });
 
     // 네비게이션 컨트롤

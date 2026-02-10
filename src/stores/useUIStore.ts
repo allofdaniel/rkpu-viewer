@@ -5,6 +5,7 @@ import { create } from 'zustand';
  * - 패널 열림/닫힘
  * - 아코디언 확장 상태
  * - 팝업 상태
+ * - 테마 (Day/Night)
  */
 
 type AccordionName = 'layersExpanded' | 'aircraftExpanded' | 'sidExpanded' |
@@ -14,7 +15,12 @@ type AtcSection = 'ACC' | 'TMA' | 'CTR';
 
 type DetailSection = 'flightStatus' | 'aircraftInfo' | 'schedule' | 'graph' | 'position';
 
+export type Theme = 'day' | 'night' | 'auto';
+
 interface UIState {
+  // Theme
+  theme: Theme;
+
   // Mobile panel
   isPanelOpen: boolean;
 
@@ -51,6 +57,9 @@ interface UIState {
 }
 
 interface UIActions {
+  // Theme
+  setTheme: (theme: Theme) => void;
+
   // Panel
   setIsPanelOpen: (value: boolean) => void;
   togglePanel: () => void;
@@ -97,6 +106,9 @@ interface UIActions {
 export type UIStore = UIState & UIActions;
 
 const useUIStore = create<UIStore>((set) => ({
+  // Theme
+  theme: 'day',
+
   // Mobile panel
   isPanelOpen: typeof window !== 'undefined' ? window.innerWidth > 768 : true,
 
@@ -135,6 +147,15 @@ const useUIStore = create<UIStore>((set) => ({
     schedule: true,
     graph: true,
     position: true,
+  },
+
+  // Actions - Theme
+  setTheme: (theme) => {
+    set({ theme });
+    // Apply theme to document root
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
   },
 
   // Actions - Panel

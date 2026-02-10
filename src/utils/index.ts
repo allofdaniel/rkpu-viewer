@@ -25,6 +25,13 @@ export type {
   RibbonSegment,
 } from './geometry';
 
+// Coordinate utilities
+export {
+  formatAviationCoord,
+  formatDMS,
+  parseAviationCoord,
+} from './coordinates';
+
 // Color utilities
 export {
   generateColor,

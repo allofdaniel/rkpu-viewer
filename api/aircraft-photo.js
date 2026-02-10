@@ -24,9 +24,11 @@ export default async function handler(req, res) {
           const psData = await psRes.json();
           if (psData.photos && psData.photos.length > 0) {
             const photo = psData.photos[0];
+            // 우선순위: large > medium > thumbnail_large > thumbnail
+            const imageUrl = photo.large?.src || photo.medium?.src || photo.thumbnail_large?.src || photo.thumbnail?.src;
             return res.status(200).json({
               source: 'planespotters',
-              image: photo.thumbnail_large?.src || photo.thumbnail?.src,
+              image: imageUrl,
               photographer: photo.photographer,
               link: photo.link
             });
@@ -47,9 +49,11 @@ export default async function handler(req, res) {
           const psData = await psRes.json();
           if (psData.photos && psData.photos.length > 0) {
             const photo = psData.photos[0];
+            // 우선순위: large > medium > thumbnail_large > thumbnail
+            const imageUrl = photo.large?.src || photo.medium?.src || photo.thumbnail_large?.src || photo.thumbnail?.src;
             return res.status(200).json({
               source: 'planespotters',
-              image: photo.thumbnail_large?.src || photo.thumbnail?.src,
+              image: imageUrl,
               photographer: photo.photographer,
               link: photo.link
             });

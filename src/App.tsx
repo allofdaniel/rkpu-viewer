@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+console.log('=== APP.TSX LOADED ===');
 import './index.css';
 
 // Context Providers
@@ -24,6 +25,7 @@ import type { ChartData } from '@/presentation/components/map/ChartLayer';
 const WaypointLayer = lazy(() => import('@/presentation/components/map/WaypointLayer').then(m => ({ default: m.WaypointLayer })));
 const AirspaceLayer = lazy(() => import('@/presentation/components/map/AirspaceLayer').then(m => ({ default: m.AirspaceLayer })));
 const ChartLayer = lazy(() => import('@/presentation/components/map/ChartLayer').then(m => ({ default: m.ChartLayer })));
+const MapContextMenu = lazy(() => import('@/presentation/components/map/MapContextMenu').then(m => ({ default: m.MapContextMenu })));
 
 // Lazy-loaded Panel Components (shown on demand)
 const AircraftInfoPanel = lazy(() => import('@/presentation/components/Panels/AircraftInfoPanel').then(m => ({ default: m.AircraftInfoPanel })));
@@ -38,12 +40,56 @@ import { AIRPORT_COORDINATES } from '@/config/airports';
 
 // Hooks
 import { useGIS } from '@/presentation/hooks/useGIS';
+import { useMapContextMenu } from '@/presentation/hooks/useMapContextMenu';
+
+// Stores
+import useUIStore from '@/stores/useUIStore';
 
 // Components
 import TimeWeatherBar from '@/components/TimeWeatherBar';
 
 // Utils
-import { parseMetar, parseMetarTime } from '@/utils/weather';
+import { parseMetar, parseMetarTime, MetarData as UtilMetarData } from '@/utils/weather';
+import type { MetarData as ContextMetarData, TafData } from '@/types';
+
+/**
+ * WeatherContext의 MetarData를 TimeWeatherBar가 필요로 하는 형식으로 변환
+ * DO-278A 요구사항 추적: SRS-TYPE-001 (타입 안전성)
+ */
+function toTimeWeatherBarProps(
+  metar: ContextMetarData | null,
+  taf: TafData | null
+): { metar: UtilMetarData | null; taf: { rawTAF?: string } | null } | null {
+  if (!metar && !taf) return null;
+
+  // obsTime이 Date인 경우 문자열로 변환 (YYYYMMDDHHMM 형식)
+  const convertObsTime = (obsTime: string | Date): string => {
+    if (typeof obsTime === 'string') return obsTime;
+    return obsTime.toISOString().replace(/[-:TZ]/g, '').slice(0, 12);
+  };
+
+  return {
+    metar: metar ? {
+      obsTime: convertObsTime(metar.obsTime),
+      wdir: metar.wdir,
+      wspd: metar.wspd,
+      wgst: metar.wgst,
+      visib: metar.visib,
+      visibM: undefined, // @/types doesn't have visibM
+      temp: metar.temp,
+      dewp: metar.dewp,
+      lRvr: metar.leftRvr,
+      rRvr: metar.rightRvr,
+      ceiling: metar.ceiling,
+      humidity: metar.humidity,
+      fltCat: metar.fltCat,
+      altim: metar.altim,
+      rawOb: metar.rawOb,
+      icaoId: metar.icaoId,
+    } : null,
+    taf: taf ? { rawTAF: taf.rawTAF || taf.rawTaf || '' } : null,
+  };
+}
 
 // Error Boundary
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -130,15 +176,31 @@ function RKPUViewer() {
   // Android WebView 높이 계산
   const windowHeight = useWindowHeight();
 
+  // Stores
+  const { theme, setTheme } = useUIStore();
+
   // Contexts
-  const { selectedAircraftHex, selectAircraft, flyTo } = useMapContext();
+  const { selectedAircraftHex, selectAircraft, flyTo, mapRef, isMapLoaded } = useMapContext();
   const { aircraft, selectedAircraft } = useAircraftContext();
   const { metar, taf, weatherRisk, refreshWeather } = useWeatherContext();
+
+  // Initialize theme on mount
+  useEffect(() => {
+    // Apply initial theme to document
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }, [theme]);
 
   // GIS Data
   const { waypoints, airspaces, isLoading: isGISLoading } = useGIS({
     airport: 'RKPU',
     autoLoad: true,
+  });
+
+  // Context Menu
+  const { contextMenu, closeContextMenu } = useMapContextMenu({
+    enabled: true,
   });
 
   /**
@@ -334,7 +396,7 @@ function RKPUViewer() {
       >
         <TimeWeatherBar
           currentTime={currentTime}
-          weatherData={metar || taf ? { metar: metar as any, taf: taf ? { rawTAF: (taf as any).rawTAF || (taf as any).raw || '' } : null } : null}
+          weatherData={toTimeWeatherBarProps(metar, taf)}
           showMetarPopup={showMetarPopup}
           setShowMetarPopup={setShowMetarPopup}
           metarPinned={metarPinned}
@@ -343,8 +405,8 @@ function RKPUViewer() {
           setShowTafPopup={setShowTafPopup}
           tafPinned={tafPinned}
           setTafPinned={setTafPinned}
-          parseMetar={parseMetar as any}
-          parseMetarTime={parseMetarTime as any}
+          parseMetar={parseMetar}
+          parseMetarTime={parseMetarTime}
         />
       </div>
 
@@ -486,6 +548,18 @@ function RKPUViewer() {
       >
         TBAS Viewer | Keys: C (Settings), L (List), W (Weather), H (Charts), ESC (Deselect)
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <Suspense fallback={null}>
+          <MapContextMenu
+            position={contextMenu.position}
+            coordinate={contextMenu.coordinate}
+            airspaces={airspaces}
+            onClose={closeContextMenu}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
@@ -524,6 +598,8 @@ function PanelLoadingFallback() {
 
 /**
  * 도구 모음 버튼 컴포넌트
+ * DO-278A 요구사항 추적: SRS-UI-002 (접근성)
+ * WCAG 2.1 AA 준수: 최소 터치 타겟 44px, ARIA 속성
  */
 function ToolbarButton({
   active,
@@ -540,15 +616,29 @@ function ToolbarButton({
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
+      aria-pressed={active}
+      tabIndex={0}
+      role="button"
       style={{
         backgroundColor: active ? 'rgba(33, 150, 243, 0.8)' : 'rgba(0, 0, 0, 0.7)',
-        border: active ? '1px solid #2196F3' : '1px solid rgba(255,255,255,0.2)',
+        border: active ? '2px solid #2196F3' : '1px solid rgba(255,255,255,0.2)',
         color: '#fff',
-        padding: '8px 16px',
+        padding: '12px 18px', // 최소 44px 터치 타겟 확보
+        minHeight: '44px',
+        minWidth: '44px',
         borderRadius: '8px',
         cursor: 'pointer',
-        fontSize: '12px',
+        fontSize: '13px',
         fontWeight: active ? 'bold' : 'normal',
+        outline: 'none',
+        transition: 'background-color 0.2s, border-color 0.2s',
+      }}
+      onFocus={(e) => {
+        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(33, 150, 243, 0.5)';
+      }}
+      onBlur={(e) => {
+        e.currentTarget.style.boxShadow = 'none';
       }}
     >
       {children}

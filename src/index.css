@@ -8,6 +8,48 @@
 :root {
   --vh: 1vh;
   --app-height: 100vh;
+
+  /* Day Theme (Default) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-panel: rgba(30, 35, 42, 0.95);
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --text-inverse: #ffffff;
+  --accent-color: #1a73e8;
+  --accent-hover: #0d47a1;
+  --border-color: rgba(0, 0, 0, 0.1);
+  --shadow-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Night Theme */
+[data-theme="night"] {
+  --bg-primary: #0a0f14;
+  --bg-secondary: #000000;
+  --bg-panel: rgba(10, 15, 20, 0.98);
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --text-inverse: #000000;
+  --accent-color: #64b5f6;
+  --accent-hover: #42a5f5;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --shadow-color: rgba(0, 0, 0, 0.8);
+}
+
+/* Auto Theme - matches system preference */
+@media (prefers-color-scheme: dark) {
+  [data-theme="auto"] {
+    --bg-primary: #0a0f14;
+    --bg-secondary: #000000;
+    --bg-panel: rgba(10, 15, 20, 0.98);
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+    --text-inverse: #000000;
+    --accent-color: #64b5f6;
+    --accent-hover: #42a5f5;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --shadow-color: rgba(0, 0, 0, 0.8);
+  }
 }
 
 html, body {
@@ -1303,13 +1345,16 @@ body {
 }
 
 /* METAR/TAF Button and Popup */
+/* DO-278A SRS-UI-002: 접근성 - WCAG 2.5.5 최소 터치 타겟 */
 .wx-metar-btn {
-  padding: 4px 10px;
+  padding: 8px 14px;
+  min-height: 36px;
+  min-width: 44px;
   background: rgba(100, 181, 246, 0.2);
   border: 1px solid rgba(100, 181, 246, 0.4);
   border-radius: 12px;
   color: #64b5f6;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1318,6 +1363,11 @@ body {
 .wx-metar-btn:hover {
   background: rgba(100, 181, 246, 0.3);
   border-color: rgba(100, 181, 246, 0.6);
+}
+
+.wx-metar-btn:focus {
+  outline: 2px solid #64b5f6;
+  outline-offset: 2px;
 }
 
 .wx-metar-btn.pinned {
@@ -4015,8 +4065,9 @@ body {
   }
 
   .wx-metar-btn {
-    font-size: 9px;
-    padding: 2px 6px;
+    font-size: 10px;
+    padding: 6px 12px;
+    min-height: 36px; /* 터치 타겟 유지 */
   }
 
   .wx-item::before {
@@ -5562,3 +5613,140 @@ body {
   margin-top: 4px;
   padding-left: 4px;
 }
+
+
+/* ============================================
+   Map Context Menu - Navigraph Style
+   ============================================ */
+.map-context-menu {
+  position: fixed;
+  background: rgba(20, 25, 35, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  min-width: 280px;
+  padding: 12px;
+  z-index: 10000;
+  font-size: 12px;
+  animation: contextMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.map-context-menu-section {
+  margin-bottom: 12px;
+}
+
+.map-context-menu-section:last-of-type {
+  margin-bottom: 0;
+}
+
+.map-context-menu-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.map-context-menu-value {
+  font-size: 13px;
+  color: #ffffff;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.map-context-menu-value-secondary {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 2px;
+}
+
+.map-context-menu-aviation {
+  font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: #64b5f6;
+  font-weight: 600;
+}
+
+.map-context-menu-airspaces {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-context-menu-airspace-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  border-left: 3px solid rgba(33, 150, 243, 0.6);
+}
+
+.map-context-menu-airspace-type {
+  font-size: 10px;
+  color: #64b5f6;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.map-context-menu-airspace-name {
+  font-size: 12px;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.map-context-menu-airspace-altitude {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.map-context-menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 12px -12px;
+}
+
+.map-context-menu-button {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(33, 150, 243, 0.15);
+  border: 1px solid rgba(33, 150, 243, 0.3);
+  border-radius: 6px;
+  color: #64b5f6;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.map-context-menu-button:hover {
+  background: rgba(33, 150, 243, 0.25);
+  border-color: rgba(33, 150, 243, 0.5);
+  color: #90caf9;
+  transform: translateY(-1px);
+}
+
+.map-context-menu-button:active {
+  transform: translateY(0);
+  background: rgba(33, 150, 243, 0.3);
+}
+

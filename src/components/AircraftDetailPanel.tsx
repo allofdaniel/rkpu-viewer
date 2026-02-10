@@ -40,6 +40,9 @@ interface AircraftImage {
   src?: string;
 }
 
+// aircraft_images can be string[] (FR24) or AircraftImage[] (legacy)
+type AircraftImageArray = (string | AircraftImage)[];
+
 interface DepartureArrival {
   iata?: string;
   icao?: string;
@@ -73,7 +76,7 @@ interface FlightSchedule {
   schedule?: Schedule;
   flight?: Flight;
   flight_status?: string;
-  aircraft_images?: AircraftImage[];
+  aircraft_images?: AircraftImageArray;
   aircraft_info?: AircraftInfo;
   _source?: string;
   _lastUpdated?: string;
@@ -289,9 +292,9 @@ const AircraftPhotoSection: React.FC<AircraftPhotoSectionProps> = ({
         <div className="loading-spinner"></div>
       </div>
     )}
-    {!aircraftPhotoLoading && (aircraftPhoto?.image || flightSchedule?.aircraft_images?.[0]?.src) && (
+    {!aircraftPhotoLoading && (aircraftPhoto?.image || (flightSchedule?.aircraft_images && flightSchedule.aircraft_images.length > 0)) && (
       <img
-        src={aircraftPhoto?.image || flightSchedule?.aircraft_images?.[0]?.src}
+        src={aircraftPhoto?.image || (typeof flightSchedule?.aircraft_images?.[0] === 'string' ? flightSchedule.aircraft_images[0] : flightSchedule?.aircraft_images?.[0]?.src)}
         alt={displayAircraft.registration || displayAircraft.callsign}
         className="aircraft-photo"
         onError={(e) => {
@@ -301,7 +304,7 @@ const AircraftPhotoSection: React.FC<AircraftPhotoSectionProps> = ({
         }}
       />
     )}
-    {!aircraftPhotoLoading && !aircraftPhoto?.image && !flightSchedule?.aircraft_images?.[0]?.src && (
+    {!aircraftPhotoLoading && !aircraftPhoto?.image && (!flightSchedule?.aircraft_images || flightSchedule.aircraft_images.length === 0) && (
       <img
         src={getAircraftImage(displayAircraft.icao_type || displayAircraft.type || '')}
         alt={displayAircraft.type || 'Aircraft'}
@@ -314,12 +317,12 @@ const AircraftPhotoSection: React.FC<AircraftPhotoSectionProps> = ({
         📷 {aircraftPhoto.photographer}
       </div>
     )}
-    {!aircraftPhoto?.image && flightSchedule?.aircraft_images?.[0]?.src && (
+    {!aircraftPhoto?.image && flightSchedule?.aircraft_images && flightSchedule.aircraft_images.length > 0 && (
       <div className="aircraft-photo-credit">
         📷 FlightRadar24
       </div>
     )}
-    {!aircraftPhoto?.image && !flightSchedule?.aircraft_images?.[0]?.src && (displayAircraft.icao_type || displayAircraft.type) && (
+    {!aircraftPhoto?.image && (!flightSchedule?.aircraft_images || flightSchedule.aircraft_images.length === 0) && (displayAircraft.icao_type || displayAircraft.type) && (
       <div className="aircraft-photo-credit type-info">
         {displayAircraft.icao_type || displayAircraft.type}
       </div>

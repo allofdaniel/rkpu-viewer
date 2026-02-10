@@ -8,6 +8,7 @@
 import React from 'react';
 import { useMapContext } from '../../contexts/MapContext';
 import { MAP_STYLES, TRAIL_DURATION_OPTIONS } from '@/config/constants';
+import useUIStore, { Theme } from '@/stores/useUIStore';
 
 type MapStyle = keyof typeof MAP_STYLES;
 
@@ -32,6 +33,30 @@ export function ControlPanel({
     toggleLayer,
     resetView,
   } = useMapContext();
+
+  const { theme, setTheme } = useUIStore();
+
+  const themeOptions: { value: Theme; label: string; icon: string }[] = [
+    { value: 'day', label: 'Day', icon: '☀️' },
+    { value: 'night', label: 'Night', icon: '🌙' },
+    { value: 'auto', label: 'Auto', icon: '🔄' },
+  ];
+
+  // Handle theme change and sync with map style
+  const handleThemeChange = (newTheme: Theme) => {
+    setTheme(newTheme);
+
+    // Auto-switch map style based on theme
+    if (newTheme === 'day' && mapStyle !== 'light') {
+      setMapStyle('light');
+    } else if (newTheme === 'night' && mapStyle !== 'dark') {
+      setMapStyle('dark');
+    } else if (newTheme === 'auto') {
+      // Use system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setMapStyle(prefersDark ? 'dark' : 'light');
+    }
+  };
 
   const mapStyleOptions: { value: MapStyle; label: string }[] = [
     { value: 'dark', label: 'Dark' },
@@ -64,6 +89,36 @@ export function ControlPanel({
         minWidth: '200px',
       }}
     >
+      {/* Theme Toggle */}
+      <Section title="Theme">
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+          {themeOptions.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleThemeChange(option.value)}
+              style={{
+                backgroundColor:
+                  theme === option.value
+                    ? 'rgba(100, 181, 246, 0.8)'
+                    : 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                color: '#fff',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <span>{option.icon}</span>
+              <span>{option.label}</span>
+            </button>
+          ))}
+        </div>
+      </Section>
+
       {/* 지도 스타일 */}
       <Section title="Map Style">
         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
