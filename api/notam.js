@@ -200,13 +200,14 @@ function flattenAimData(aimData) {
   return items;
 }
 
-async function fetchFromStorage(params) {
+async function fetchFromStorage(params, req) {
   const { limit, period, bounds } = params;
 
   const today = new Date().toISOString().split('T')[0];
   let latestPath = `notam_realtime/${today}/notam_latest.json`;
   let fileUrl = `${SUPABASE_PUBLIC}/${latestPath}`;
   let response = await fetch(fileUrl);
+  let usedStaticFallback = false;
 
   if (!response.ok) {
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -215,12 +216,45 @@ async function fetchFromStorage(params) {
     response = await fetch(fileUrl);
   }
 
+  // Static fallback: use /data/notams.json if Supabase storage fails
+  if (!response.ok) {
+    const protocol = req?.headers?.['x-forwarded-proto'] || 'https';
+    const host = req?.headers?.host || 'tbas.vercel.app';
+    const staticUrl = `${protocol}://${host}/data/notams.json`;
+    response = await fetch(staticUrl);
+    usedStaticFallback = true;
+    latestPath = 'static/data/notams.json';
+  }
+
   if (!response.ok) {
     return { data: [], count: 0, source: 'storage', message: 'No NOTAM data found' };
   }
 
-  const aimData = await response.json();
-  let notamData = flattenAimData(aimData);
+  const rawData = await response.json();
+  let notamData;
+
+  // Handle different data formats
+  if (Array.isArray(rawData)) {
+    // Static fallback format (direct array from /data/notams.json)
+    notamData = rawData.map(item => ({
+      notam_number: item.notam_id || item.notam_number || '',
+      location: item.location || item.icao || '',
+      full_text: item.full_text || '',
+      e_text: item.message || item.e_text || '',
+      qcode: item.qcode || item.type || '',
+      qcode_mean: item.qcode_desc || item.qcode_mean || '',
+      effective_start: item.effectiveStart || item.effective_start || '',
+      effective_end: item.effectiveEnd || item.effective_end || '',
+      series: item.series || '',
+      fir: item.fir || '',
+      q_lat: item.latitude || item.q_lat,
+      q_lon: item.longitude || item.q_lon,
+      q_radius: item.radius || item.q_radius,
+    }));
+  } else {
+    // AIM format (object with domestic/international structure)
+    notamData = flattenAimData(rawData);
+  }
   const totalCount = notamData.length;
 
   if (period && period !== 'all') {
@@ -240,9 +274,9 @@ async function fetchFromStorage(params) {
     data: notamData,
     count: totalCount,
     afterPeriodFilter: afterPeriodCount,
-    source: 'storage',
+    source: usedStaticFallback ? 'static-fallback' : 'storage',
     file: latestPath,
-    crawled_at: aimData.crawled_at || null,
+    crawled_at: Array.isArray(rawData) ? null : (rawData.crawled_at || null),
   };
 }
 
@@ -273,20 +307,20 @@ export default async function handler(req, res) {
     const params = { limit, period, bounds };
     let result;
 
-    // DB 우선 → Storage 폴백
+    // DB 우선 → Storage 폴백 → Static 폴백
     if (SUPABASE_SERVICE_KEY) {
       try {
         result = await fetchFromDatabase(params);
         // DB에 데이터가 없으면 Storage 폴백
         if (result.data.length === 0) {
-          result = await fetchFromStorage(params);
+          result = await fetchFromStorage(params, req);
         }
       } catch (dbError) {
         console.warn('DB query failed, falling back to Storage:', dbError.message);
-        result = await fetchFromStorage(params);
+        result = await fetchFromStorage(params, req);
       }
     } else {
-      result = await fetchFromStorage(params);
+      result = await fetchFromStorage(params, req);
     }
 
     let { data: notamData, ...meta } = result;
