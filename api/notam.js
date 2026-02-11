@@ -1,5 +1,14 @@
 import { setCorsHeaders, checkRateLimit } from './_utils/cors.js';
-import staticNotamData from './_data/notams.json' with { type: 'json' };
+import { createRequire } from 'module';
+
+// Use createRequire for JSON import (works across Node.js versions)
+const require = createRequire(import.meta.url);
+let staticNotamData = [];
+try {
+  staticNotamData = require('./_data/notams.json');
+} catch (e) {
+  console.warn('Static NOTAM JSON not found:', e.message);
+}
 
 // ============================================================
 // Supabase 설정
