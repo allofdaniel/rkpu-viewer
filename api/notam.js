@@ -243,16 +243,35 @@ async function fetchFromStorage(params, req) {
   }
 
   // Also fallback if parsed data is empty or invalid
-  const isEmptyData = !rawData ||
-    (Array.isArray(rawData) && rawData.length === 0) ||
-    (typeof rawData === 'object' && !Array.isArray(rawData) &&
-     !rawData.domestic && !rawData.international && !rawData.snowtam);
+  const isEmptyData = (data) => !data ||
+    (Array.isArray(data) && data.length === 0) ||
+    (typeof data === 'object' && !Array.isArray(data) &&
+     !data.domestic && !data.international && !data.snowtam);
 
-  if (!usedStaticFallback && isEmptyData) {
-    console.log('Storage returned empty data, using static fallback');
+  if (!usedStaticFallback && isEmptyData(rawData)) {
+    console.log('Storage returned empty data, trying static fallback');
     rawData = staticNotamData;
     usedStaticFallback = true;
     latestPath = 'static-import';
+  }
+
+  // If static import also empty, try HTTP fetch from deployed app's /data/notams.json
+  if (usedStaticFallback && isEmptyData(rawData)) {
+    console.log('Static import empty, fetching from deployed /data/notams.json');
+    try {
+      // Use req.headers.host to construct URL, or fallback to known deployed URL
+      const host = req.headers.host || 'tbas.vercel.app';
+      const protocol = host.includes('localhost') ? 'http' : 'https';
+      const fallbackUrl = `${protocol}://${host}/data/notams.json`;
+      const fallbackResponse = await fetch(fallbackUrl);
+      if (fallbackResponse.ok) {
+        rawData = await fallbackResponse.json();
+        latestPath = 'http-fallback';
+        console.log(`HTTP fallback loaded ${rawData?.length || 0} items`);
+      }
+    } catch (httpError) {
+      console.warn('HTTP fallback also failed:', httpError.message);
+    }
   }
 
   let notamData;
