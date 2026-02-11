@@ -225,8 +225,27 @@ async function fetchFromStorage(params, req) {
     usedStaticFallback = true;
     latestPath = 'static-import';
   } else {
-    rawData = await response.json();
+    try {
+      rawData = await response.json();
+    } catch (parseError) {
+      console.warn('Storage JSON parse failed:', parseError.message);
+      rawData = null;
+    }
   }
+
+  // Also fallback if parsed data is empty or invalid
+  const isEmptyData = !rawData ||
+    (Array.isArray(rawData) && rawData.length === 0) ||
+    (typeof rawData === 'object' && !Array.isArray(rawData) &&
+     !rawData.domestic && !rawData.international && !rawData.snowtam);
+
+  if (!usedStaticFallback && isEmptyData) {
+    console.log('Storage returned empty data, using static fallback');
+    rawData = staticNotamData;
+    usedStaticFallback = true;
+    latestPath = 'static-import';
+  }
+
   let notamData;
 
   // Handle different data formats
