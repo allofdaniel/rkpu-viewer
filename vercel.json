@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/notam.js": {
+      "includeFiles": "_data/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/privacy",
@@ -44,7 +49,7 @@
         { "key": "X-XSS-Protection", "value": "1; mode=block" },
         { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" },
         { "key": "Permissions-Policy", "value": "geolocation=(self), microphone=()" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://api.mapbox.com blob:; style-src 'self' 'unsafe-inline' https://api.mapbox.com; img-src 'self' data: blob: https://*.mapbox.com https://*.tiles.mapbox.com; connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://*.supabase.co https://api.airplanes.live https://aviationweather.gov wss://*.supabase.co; worker-src 'self' blob:; child-src blob:; font-src 'self' data:; frame-ancestors 'none';" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://api.mapbox.com blob:; style-src 'self' 'unsafe-inline' https://api.mapbox.com; img-src 'self' data: blob: https://*.mapbox.com https://*.tiles.mapbox.com https://cdn.jetphotos.com https://t.plnspttrs.net https://*.planespotters.net https://www.airport-data.com https://cdn.airport-data.com; connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://*.supabase.co https://api.airplanes.live https://aviationweather.gov wss://*.supabase.co; worker-src 'self' blob:; child-src blob:; font-src 'self' data:; frame-ancestors 'none';" }
       ]
     }
   ]
