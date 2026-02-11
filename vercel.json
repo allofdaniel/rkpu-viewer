@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/notam.js": {
-      "includeFiles": "_data/**"
+      "includeFiles": "api/_data/**"
     }
   },
   "rewrites": [
