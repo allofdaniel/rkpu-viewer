@@ -1,4 +1,6 @@
 import { setCorsHeaders, checkRateLimit } from './_utils/cors.js';
+import fs from 'fs';
+import path from 'path';
 
 // ============================================================
 // Supabase 설정
@@ -216,21 +218,23 @@ async function fetchFromStorage(params, req) {
     response = await fetch(fileUrl);
   }
 
-  // Static fallback: use /data/notams.json if Supabase storage fails
+  // Static fallback: use local file system if Supabase storage fails
+  let rawData;
   if (!response.ok) {
-    const protocol = req?.headers?.['x-forwarded-proto'] || 'https';
-    const host = req?.headers?.host || 'tbas.vercel.app';
-    const staticUrl = `${protocol}://${host}/data/notams.json`;
-    response = await fetch(staticUrl);
-    usedStaticFallback = true;
-    latestPath = 'static/data/notams.json';
+    try {
+      // Vercel serverless에서 public 폴더는 프로젝트 루트에 위치
+      const staticPath = path.join(process.cwd(), 'public', 'data', 'notams.json');
+      const fileContent = fs.readFileSync(staticPath, 'utf-8');
+      rawData = JSON.parse(fileContent);
+      usedStaticFallback = true;
+      latestPath = 'static/data/notams.json';
+    } catch (fsError) {
+      console.warn('Static fallback also failed:', fsError.message);
+      return { data: [], count: 0, source: 'storage', message: 'No NOTAM data found' };
+    }
+  } else {
+    rawData = await response.json();
   }
-
-  if (!response.ok) {
-    return { data: [], count: 0, source: 'storage', message: 'No NOTAM data found' };
-  }
-
-  const rawData = await response.json();
   let notamData;
 
   // Handle different data formats
