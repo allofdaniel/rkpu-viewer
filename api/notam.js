@@ -1,37 +1,7 @@
 import { setCorsHeaders, checkRateLimit } from './_utils/cors.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Try multiple paths for static NOTAM data
-let staticNotamData = [];
-const possiblePaths = [
-  path.join(__dirname, '_data', 'notams.json'),
-  path.join(__dirname, '..', 'public', 'data', 'notams.json'),
-  path.join(process.cwd(), 'api', '_data', 'notams.json'),
-  path.join(process.cwd(), 'public', 'data', 'notams.json'),
-];
-
-for (const tryPath of possiblePaths) {
-  try {
-    if (fs.existsSync(tryPath)) {
-      const content = fs.readFileSync(tryPath, 'utf-8');
-      staticNotamData = JSON.parse(content);
-      console.log(`Loaded static NOTAM from: ${tryPath} (${staticNotamData.length} items)`);
-      break;
-    }
-  } catch (e) {
-    console.warn(`Failed to load from ${tryPath}:`, e.message);
-  }
-}
-
-if (staticNotamData.length === 0) {
-  console.warn('Static NOTAM data not found in any location');
-}
+// Static fallback URL (deployed app's public data)
+const STATIC_FALLBACK_URL = 'https://tbas.vercel.app/data/notams.json';
 
 // ============================================================
 // Supabase 설정
@@ -233,7 +203,7 @@ function flattenAimData(aimData) {
   return items;
 }
 
-async function fetchFromStorage(params, req) {
+async function fetchFromStorage(params) {
   const { limit, period, bounds } = params;
 
   const today = new Date().toISOString().split('T')[0];
@@ -249,51 +219,37 @@ async function fetchFromStorage(params, req) {
     response = await fetch(fileUrl);
   }
 
-  // Static fallback: use pre-imported JSON if Supabase storage fails
-  let rawData;
-  if (!response.ok) {
-    // Use statically imported JSON data
-    rawData = staticNotamData;
-    usedStaticFallback = true;
-    latestPath = 'static-import';
-  } else {
-    try {
-      rawData = await response.json();
-    } catch (parseError) {
-      console.warn('Storage JSON parse failed:', parseError.message);
-      rawData = null;
-    }
-  }
-
-  // Also fallback if parsed data is empty or invalid
+  // Helper to check if data is empty/invalid
   const isEmptyData = (data) => !data ||
     (Array.isArray(data) && data.length === 0) ||
     (typeof data === 'object' && !Array.isArray(data) &&
      !data.domestic && !data.international && !data.snowtam);
 
-  if (!usedStaticFallback && isEmptyData(rawData)) {
-    console.log('Storage returned empty data, trying static fallback');
-    rawData = staticNotamData;
-    usedStaticFallback = true;
-    latestPath = 'static-import';
+  // Try to get data from Supabase storage response
+  let rawData = null;
+  if (response.ok) {
+    try {
+      rawData = await response.json();
+    } catch (parseError) {
+      console.warn('Storage JSON parse failed:', parseError.message);
+    }
   }
 
-  // If static import also empty, try HTTP fetch from deployed app's /data/notams.json
-  if (usedStaticFallback && isEmptyData(rawData)) {
-    console.log('Static import empty, fetching from deployed /data/notams.json');
+  // If storage failed or returned empty, use HTTP fallback
+  if (isEmptyData(rawData)) {
+    console.log('Storage unavailable or empty, fetching from static fallback URL');
     try {
-      // Use req.headers.host to construct URL, or fallback to known deployed URL
-      const host = req.headers.host || 'tbas.vercel.app';
-      const protocol = host.includes('localhost') ? 'http' : 'https';
-      const fallbackUrl = `${protocol}://${host}/data/notams.json`;
-      const fallbackResponse = await fetch(fallbackUrl);
+      const fallbackResponse = await fetch(STATIC_FALLBACK_URL);
       if (fallbackResponse.ok) {
         rawData = await fallbackResponse.json();
+        usedStaticFallback = true;
         latestPath = 'http-fallback';
         console.log(`HTTP fallback loaded ${rawData?.length || 0} items`);
+      } else {
+        console.warn('HTTP fallback failed:', fallbackResponse.status);
       }
     } catch (httpError) {
-      console.warn('HTTP fallback also failed:', httpError.message);
+      console.warn('HTTP fallback error:', httpError.message);
     }
   }
 
@@ -379,14 +335,14 @@ export default async function handler(req, res) {
         result = await fetchFromDatabase(params);
         // DB에 데이터가 없으면 Storage 폴백
         if (result.data.length === 0) {
-          result = await fetchFromStorage(params, req);
+          result = await fetchFromStorage(params);
         }
       } catch (dbError) {
         console.warn('DB query failed, falling back to Storage:', dbError.message);
-        result = await fetchFromStorage(params, req);
+        result = await fetchFromStorage(params);
       }
     } else {
-      result = await fetchFromStorage(params, req);
+      result = await fetchFromStorage(params);
     }
 
     let { data: notamData, ...meta } = result;

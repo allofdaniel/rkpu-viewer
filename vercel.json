@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/notam.js": {
-      "includeFiles": "api/_data/**,public/data/**"
-    }
-  },
   "rewrites": [
     {
       "source": "/privacy",
