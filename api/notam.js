@@ -1,11 +1,5 @@
 import { setCorsHeaders, checkRateLimit } from './_utils/cors.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-// ESM에서 __dirname 대체
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import staticNotamData from './_data/notams.json' with { type: 'json' };
 
 // ============================================================
 // Supabase 설정
@@ -223,20 +217,13 @@ async function fetchFromStorage(params, req) {
     response = await fetch(fileUrl);
   }
 
-  // Static fallback: use local file system if Supabase storage fails
+  // Static fallback: use pre-imported JSON if Supabase storage fails
   let rawData;
   if (!response.ok) {
-    try {
-      // Vercel serverless에서 api 폴더와 같이 번들링되는 _data 폴더 사용
-      const staticPath = path.join(__dirname, '_data', 'notams.json');
-      const fileContent = fs.readFileSync(staticPath, 'utf-8');
-      rawData = JSON.parse(fileContent);
-      usedStaticFallback = true;
-      latestPath = 'static/_data/notams.json';
-    } catch (fsError) {
-      console.warn('Static fallback also failed:', fsError.message);
-      return { data: [], count: 0, source: 'storage', message: 'No NOTAM data found' };
-    }
+    // Use statically imported JSON data
+    rawData = staticNotamData;
+    usedStaticFallback = true;
+    latestPath = 'static-import';
   } else {
     rawData = await response.json();
   }
