@@ -131,10 +131,11 @@ export default function useNotamData(): UseNotamDataReturn {
         response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        // Check if response is JSON (Vite dev server returns HTML for missing routes)
+        // Content-Type 검증 완화 (Vite dev server나 일부 환경에서 헤더가 없을 수 있음)
         const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          throw new Error('Response is not JSON');
+        // Content-Type이 있고 명시적으로 HTML인 경우만 에러
+        if (contentType && contentType.includes('text/html')) {
+          throw new Error('Response is HTML, not JSON (likely dev server fallback)');
         }
       } catch (apiError) {
         logger.debug('NOTAM', 'API failed, trying local fallback', { error: (apiError as Error).message });

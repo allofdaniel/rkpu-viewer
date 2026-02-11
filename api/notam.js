@@ -296,6 +296,8 @@ export default async function handler(req, res) {
       notamData = notamData.slice(0, limit);
     }
 
+    // Content-Type 명시적 설정 (브라우저 호환성)
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.status(200).json({
       data: notamData,
       ...meta,

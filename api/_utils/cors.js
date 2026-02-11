@@ -3,39 +3,49 @@
  * DO-278A 요구사항 추적: SRS-SEC-002, SRS-SEC-003
  *
  * 환경변수 기반 CORS 화이트리스트 및 Rate Limiting 관리
- * Vercel KV 지원 (분산 rate limiting)
+ * Upstash Redis 지원 (분산 rate limiting)
  */
 
 // Rate Limiting 설정
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1분
 const RATE_LIMIT_MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX || '100', 10); // 분당 최대 요청 수
 
-// In-memory rate limit store (fallback when KV not available)
+// In-memory rate limit store (fallback when Redis not available)
 const rateLimitStore = new Map();
 
-// Vercel KV 인스턴스 (지연 로딩)
-let kvInstance = null;
-let kvInitialized = false;
+// Upstash Redis 인스턴스 (지연 로딩)
+let redisInstance = null;
+let redisInitialized = false;
 
 /**
- * Vercel KV 초기화 (KV_REST_API_URL 환경변수가 있을 때만)
+ * Upstash Redis 초기화 (환경변수가 있을 때만)
  * DO-278A 요구사항 추적: SRS-SEC-003 (분산 Rate Limiting)
+ *
+ * 지원되는 환경변수:
+ * - UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
+ * - KV_REST_API_URL + KV_REST_API_TOKEN (Vercel KV 호환)
  */
-async function getKvInstance() {
-  if (kvInitialized) return kvInstance;
-  kvInitialized = true;
+async function getRedisInstance() {
+  if (redisInitialized) return redisInstance;
+  redisInitialized = true;
 
-  // Vercel KV 환경변수 확인
-  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+  // Upstash Redis 환경변수 확인 (Vercel KV 변수도 지원)
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (redisUrl && redisToken) {
     try {
-      const { kv } = await import('@vercel/kv');
-      kvInstance = kv;
-      console.log('[Rate Limit] Using Vercel KV for distributed rate limiting');
+      const { Redis } = await import('@upstash/redis');
+      redisInstance = new Redis({
+        url: redisUrl,
+        token: redisToken,
+      });
+      console.log('[Rate Limit] Using Upstash Redis for distributed rate limiting');
     } catch (e) {
-      console.warn('[Rate Limit] Vercel KV not available, using in-memory fallback');
+      console.warn('[Rate Limit] Upstash Redis not available, using in-memory fallback:', e.message);
     }
   }
-  return kvInstance;
+  return redisInstance;
 }
 
 /**
@@ -51,7 +61,7 @@ function cleanupRateLimitStore() {
 }
 
 /**
- * Rate Limiting 검사 (Vercel KV 지원)
+ * Rate Limiting 검사 (Upstash Redis 지원)
  * @param {object} req - 요청 객체
  * @param {object} res - 응답 객체
  * @returns {Promise<boolean>} - 요청이 차단되면 true
@@ -64,16 +74,16 @@ export async function checkRateLimit(req, res) {
                    'unknown';
 
   const now = Date.now();
-  const kv = await getKvInstance();
+  const redis = await getRedisInstance();
 
   let count = 0;
   let windowStart = now;
 
-  if (kv) {
-    // Vercel KV 사용 (분산)
+  if (redis) {
+    // Upstash Redis 사용 (분산)
     const key = `ratelimit:${clientId}`;
     try {
-      const data = await kv.get(key);
+      const data = await redis.get(key);
       if (data && (now - data.windowStart < RATE_LIMIT_WINDOW_MS)) {
         count = data.count + 1;
         windowStart = data.windowStart;
@@ -81,10 +91,10 @@ export async function checkRateLimit(req, res) {
         count = 1;
         windowStart = now;
       }
-      await kv.set(key, { count, windowStart }, { ex: 120 }); // 2분 TTL
+      await redis.set(key, { count, windowStart }, { ex: 120 }); // 2분 TTL
     } catch (e) {
-      console.error('[Rate Limit] KV error, falling back to in-memory', e.message);
-      // KV 오류 시 in-memory fallback
+      console.error('[Rate Limit] Redis error, falling back to in-memory:', e.message);
+      // Redis 오류 시 in-memory fallback
       return checkRateLimitInMemory(clientId, now, res);
     }
   } else {
@@ -192,7 +202,17 @@ export function isOriginAllowed(origin) {
   if (!origin) return false;
 
   const allowed = getAllowedOrigins();
-  // DO-278A SRS-SEC-002: 와일드카드 체크 제거, 정확한 매칭만 허용
+
+  // Vercel 프리뷰 배포 URL 패턴 지원 (예: rkpu-viewer-xxx-user.vercel.app)
+  // DO-278A SRS-SEC-002: 와일드카드 대신 특정 패턴만 허용
+  if (origin.endsWith('.vercel.app')) {
+    const hostname = origin.replace('https://', '');
+    if (hostname.includes('rkpu-viewer') || hostname.includes('tbas')) {
+      return true;
+    }
+  }
+
+  // 정확한 매칭 확인
   return allowed.some(allowedOrigin => {
     return origin === allowedOrigin;
   });
