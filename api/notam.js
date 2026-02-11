@@ -1,13 +1,36 @@
 import { setCorsHeaders, checkRateLimit } from './_utils/cors.js';
-import { createRequire } from 'module';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Use createRequire for JSON import (works across Node.js versions)
-const require = createRequire(import.meta.url);
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Try multiple paths for static NOTAM data
 let staticNotamData = [];
-try {
-  staticNotamData = require('./_data/notams.json');
-} catch (e) {
-  console.warn('Static NOTAM JSON not found:', e.message);
+const possiblePaths = [
+  path.join(__dirname, '_data', 'notams.json'),
+  path.join(__dirname, '..', 'public', 'data', 'notams.json'),
+  path.join(process.cwd(), 'api', '_data', 'notams.json'),
+  path.join(process.cwd(), 'public', 'data', 'notams.json'),
+];
+
+for (const tryPath of possiblePaths) {
+  try {
+    if (fs.existsSync(tryPath)) {
+      const content = fs.readFileSync(tryPath, 'utf-8');
+      staticNotamData = JSON.parse(content);
+      console.log(`Loaded static NOTAM from: ${tryPath} (${staticNotamData.length} items)`);
+      break;
+    }
+  } catch (e) {
+    console.warn(`Failed to load from ${tryPath}:`, e.message);
+  }
+}
+
+if (staticNotamData.length === 0) {
+  console.warn('Static NOTAM data not found in any location');
 }
 
 // ============================================================
