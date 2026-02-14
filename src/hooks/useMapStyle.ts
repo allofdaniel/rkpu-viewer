@@ -37,18 +37,23 @@ const useMapStyle = ({
 
   // Handle base style change (dark/light/satellite) - NOT black background
   useEffect(() => {
-    if (!map?.current || !mapLoaded) return;
+    if (!map?.current || !mapLoaded) {
+      logger.debug('MapStyle', `Early return: map=${!!map?.current}, mapLoaded=${mapLoaded}`);
+      return;
+    }
 
-    // 기본 스타일 선택
-    // V-World 키가 있으면 위성은 래스터 오버레이로 처리 (스타일 교체 불필요)
-    const vworldKey = import.meta.env.VITE_VWORLD_API_KEY;
-    const newStyle = (!vworldKey && showSatellite)
-      ? MAP_STYLES.satellite as string
-      : (isDarkMode ? MAP_STYLES.dark as string : MAP_STYLES.light as string);
+    // 기본 스타일 선택 (dark/light만 - 위성은 래스터 오버레이로 처리)
+    const newStyle = isDarkMode ? MAP_STYLES.dark as string : MAP_STYLES.light as string;
+
+    logger.debug('MapStyle', `Style check: showSatellite=${showSatellite}, isDarkMode=${isDarkMode}, newStyle=${newStyle}, prevStyle=${prevStyleRef.current}`);
 
     // 스타일이 같으면 스킵
-    if (prevStyleRef.current === newStyle) return;
+    if (prevStyleRef.current === newStyle) {
+      logger.debug('MapStyle', 'Style unchanged, skipping');
+      return;
+    }
     prevStyleRef.current = newStyle;
+    logger.info('MapStyle', `Changing style to: ${newStyle}`);
 
     const center = map.current.getCenter();
     const zoom = map.current.getZoom();
@@ -195,59 +200,84 @@ const useMapStyle = ({
     }
   }, [map, radarBlackBackground, mapLoaded]);
 
-  // Handle V-World satellite raster overlay toggle
+  // Handle satellite raster overlay toggle (V-World or Mapbox)
   useEffect(() => {
-    if (!map?.current || !mapLoaded) return;
+    if (!map?.current || !mapLoaded) {
+      return;
+    }
+
     const vworldKey = import.meta.env.VITE_VWORLD_API_KEY;
-    if (!vworldKey) return; // V-World 미설정 시 Mapbox satellite 폴백
-    if (!map.current.isStyleLoaded()) return;
+    const sourceId = 'satellite-overlay';
+    const layerId = 'satellite-overlay-layer';
 
-    const sourceId = 'vworld-satellite';
-    const layerId = 'vworld-satellite-layer';
+    // 스타일 로드 대기 후 실행
+    const toggleSatelliteLayer = () => {
+      if (!map.current) return;
 
-    if (showSatellite) {
-      // V-World 래스터 소스 추가
-      if (!map.current.getSource(sourceId)) {
-        map.current.addSource(sourceId, {
-          type: 'raster',
-          tiles: [`https://api.vworld.kr/req/wmts/1.0.0/${vworldKey}/Satellite/{z}/{y}/{x}.jpeg`],
-          tileSize: 256,
-          minzoom: 5,
-          maxzoom: 19,
-          attribution: '&copy; V-World (국토교통부)'
-        });
-      }
-      // 래스터 레이어 추가 (기본 지도 위, 커스텀 레이어 아래)
-      if (!map.current.getLayer(layerId)) {
-        const customLayerIds = [
-          '3d-buildings',
-          'radar-black-overlay',
-          'aircraft-3d', 'aircraft-2d', 'aircraft-labels',
-          'aircraft-trails-3d', 'aircraft-trails-2d', 'trail-layer',
-          'waypoint-layer', 'airspace-layer', 'atc-sectors-fill'
-        ];
-        let beforeLayerId: string | undefined;
-        for (const id of customLayerIds) {
-          if (map.current.getLayer(id)) {
-            beforeLayerId = id;
-            break;
+      try {
+        if (showSatellite) {
+          // 위성 래스터 소스 추가
+          if (!map.current.getSource(sourceId)) {
+            if (vworldKey) {
+              // V-World 위성 (한국 고해상도)
+              logger.info('MapStyle', 'Adding V-World satellite source');
+              map.current.addSource(sourceId, {
+                type: 'raster',
+                tiles: [`https://api.vworld.kr/req/wmts/1.0.0/${vworldKey}/Satellite/{z}/{y}/{x}.jpeg`],
+                tileSize: 256,
+                minzoom: 5,
+                maxzoom: 19,
+                attribution: '&copy; V-World (국토교통부)'
+              });
+            } else {
+              // Mapbox 위성 (글로벌)
+              logger.info('MapStyle', 'Adding Mapbox satellite source');
+              map.current.addSource(sourceId, {
+                type: 'raster',
+                url: 'mapbox://mapbox.satellite',
+                tileSize: 256
+              });
+            }
+          }
+          // 래스터 레이어 추가 (background 바로 위에)
+          if (!map.current.getLayer(layerId)) {
+            // Mapbox 기본 레이어 중 첫 번째 비-background 레이어 찾기
+            const layers = map.current.getStyle()?.layers || [];
+            let firstNonBgLayer: string | undefined;
+            for (const layer of layers) {
+              if (layer.type !== 'background') {
+                firstNonBgLayer = layer.id;
+                break;
+              }
+            }
+            logger.info('MapStyle', `Adding satellite layer before ${firstNonBgLayer || 'end'}`);
+            map.current.addLayer({
+              id: layerId,
+              type: 'raster',
+              source: sourceId,
+              paint: { 'raster-opacity': 1 }
+            }, firstNonBgLayer);
+          }
+        } else {
+          // 위성 레이어/소스 제거
+          if (map.current.getLayer(layerId)) {
+            logger.info('MapStyle', 'Removing satellite layer');
+            map.current.removeLayer(layerId);
+          }
+          if (map.current.getSource(sourceId)) {
+            map.current.removeSource(sourceId);
           }
         }
-        map.current.addLayer({
-          id: layerId,
-          type: 'raster',
-          source: sourceId,
-          paint: { 'raster-opacity': 1 }
-        }, beforeLayerId);
+      } catch (err) {
+        logger.error('MapStyle', `Satellite overlay error: ${err}`);
       }
+    };
+
+    // 스타일이 로드되었으면 바로 실행, 아니면 대기
+    if (map.current.isStyleLoaded()) {
+      toggleSatelliteLayer();
     } else {
-      // V-World 레이어/소스 제거
-      if (map.current.getLayer(layerId)) {
-        map.current.removeLayer(layerId);
-      }
-      if (map.current.getSource(sourceId)) {
-        map.current.removeSource(sourceId);
-      }
+      map.current.once('style.load', toggleSatelliteLayer);
     }
   }, [map, showSatellite, mapLoaded]);
 

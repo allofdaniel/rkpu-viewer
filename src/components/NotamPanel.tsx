@@ -12,13 +12,13 @@ import {
   getNotamType,
   getCancelledNotamRef,
   getNotamValidity,
-  isNotamInPeriod,
   buildCancelledNotamSet,
 } from '../utils/notam';
 
 interface NotamDataItem {
   id?: string;
   location?: string;
+  fir?: string;
   notam_number?: string;
   e_text?: string;
   qcode?: string;
@@ -121,6 +121,10 @@ interface NotamListProps {
   notamLocationsOnMap: Set<string>;
   notamExpanded: NotamExpandedState;
   setNotamExpanded: React.Dispatch<React.SetStateAction<NotamExpandedState>>;
+  pageSize: number;
+  currentPage: number;
+  setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
+  onFilteredCountChange: (count: number) => void;
 }
 
 interface NotamItemProps {
@@ -170,6 +174,9 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
   lightningData,
 }) => {
   const [activeTab, setActiveTab] = useState<'notam' | 'weather'>('notam');
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filteredCount, setFilteredCount] = useState(0);
 
   return (
     <div className="notam-dropdown-wrapper">
@@ -227,6 +234,29 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
             />
           </div>
 
+          {/* Period Selector */}
+          <div className="notam-period-selector">
+            <span className="notam-period-label">기간:</span>
+            <div className="notam-period-buttons">
+              {[
+                { value: 'current', label: '현재 유효', tooltip: '지금 시점에 활성화된 NOTAM (시작일 ≤ 현재 ≤ 종료일)' },
+                { value: '1month', label: '1개월', tooltip: '과거 30일 ~ 미래 30일 범위의 NOTAM' },
+                { value: '1year', label: '1년', tooltip: '과거 365일 ~ 미래 365일 범위의 NOTAM' },
+                { value: 'all', label: '전체', tooltip: '기간 제한 없이 DB의 모든 NOTAM' },
+              ].map(({ value, label, tooltip }) => (
+                <button
+                  key={value}
+                  className={`notam-period-btn ${notamPeriod === value ? 'active' : ''}`}
+                  onClick={() => setNotamPeriod(value)}
+                  aria-pressed={notamPeriod === value}
+                  title={tooltip}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Map Toggle Section */}
           <MapToggleSection
             notamData={notamData}
@@ -250,6 +280,22 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
             </span>
           </div>
 
+          {/* Page Size Selector */}
+          <div className="notam-page-size-selector">
+            <span className="notam-page-size-label">표시:</span>
+            <div className="notam-page-size-buttons">
+              {[5, 10, 20, 50].map(size => (
+                <button
+                  key={size}
+                  className={`notam-page-size-btn ${pageSize === size ? 'active' : ''}`}
+                  onClick={() => { setPageSize(size); setCurrentPage(1); }}
+                >
+                  {size}개
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Content */}
           <div className="notam-content">
             {notamLoading && <div className="notam-loading">로딩 중...</div>}
@@ -262,23 +308,63 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
                 notamLocationsOnMap={notamLocationsOnMap}
                 notamExpanded={notamExpanded}
                 setNotamExpanded={setNotamExpanded}
+                pageSize={pageSize}
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+                onFilteredCountChange={setFilteredCount}
               />
             )}
           </div>
 
-          {/* Footer */}
+          {/* Footer with Pagination */}
           <div className="notam-footer">
             {notamData && (
-              <span className="notam-count">
-                {notamLocationsOnMap.size > 0
-                  ? `선택 공항 NOTAM ${notamData.data?.filter(n => notamLocationsOnMap.has(n.location || '')).length || 0}건`
-                  : `전체 ${notamData.returned?.toLocaleString() || notamData.data?.length || 0}건`
-                }
-              </span>
+              <>
+                <span className="notam-count">
+                  {notamPeriod === 'current' ? '현재 유효' :
+                   notamPeriod === '1month' ? '1개월 범위' :
+                   notamPeriod === '1year' ? '1년 범위' : '전체'} NOTAM {filteredCount.toLocaleString()}건
+                  {notamLocationsOnMap.size > 0 && ` (${notamLocationsOnMap.size}개 공항 선택)`}
+                </span>
+                {filteredCount > pageSize && (
+                  <div className="notam-pagination">
+                    <button
+                      className="notam-page-btn"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      aria-label="첫 페이지"
+                    >
+                      ««
+                    </button>
+                    <button
+                      className="notam-page-btn"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      aria-label="이전 페이지"
+                    >
+                      «
+                    </button>
+                    <span className="notam-page-info">{currentPage} / {Math.ceil(filteredCount / pageSize)}</span>
+                    <button
+                      className="notam-page-btn"
+                      onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredCount / pageSize), p + 1))}
+                      disabled={currentPage >= Math.ceil(filteredCount / pageSize)}
+                      aria-label="다음 페이지"
+                    >
+                      »
+                    </button>
+                    <button
+                      className="notam-page-btn"
+                      onClick={() => setCurrentPage(Math.ceil(filteredCount / pageSize))}
+                      disabled={currentPage >= Math.ceil(filteredCount / pageSize)}
+                      aria-label="마지막 페이지"
+                    >
+                      »»
+                    </button>
+                  </div>
+                )}
+              </>
             )}
-            <span className="notam-update-time">
-              {notamLocationsOnMap.size > 0 ? [...notamLocationsOnMap].join(', ') : '지도 영역 기준'}
-            </span>
           </div>
           </>)}
 
@@ -385,22 +471,40 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
 };
 
 /**
+ * Helper: Get effective location for a NOTAM
+ * If location has no coordinates, fall back to fir (typically RKRR for Korean FIR)
+ */
+const getEffectiveLocation = (n: NotamDataItem): string => {
+  const loc = n.location || '';
+  // If location has coordinates, use it; otherwise fall back to fir (typically RKRR)
+  if (loc && AIRPORT_COORDINATES[loc]) return loc;
+  return n.fir || loc || '';
+};
+
+/**
  * Map Toggle Section Component
  */
 const MapToggleSection: React.FC<MapToggleSectionProps> = ({ notamData, notamPeriod, notamLocationsOnMap, setNotamLocationsOnMap }) => {
-  // Calculate NOTAM counts based on period first
+
+  // Calculate NOTAM counts (period filtering is done server-side by API)
   const getNotamCounts = (): Record<string, number> => {
     const counts: Record<string, number> = {};
     const cancelledSet = buildCancelledNotamSet(notamData?.data || []);
     notamData?.data?.forEach(n => {
-      if (!isNotamInPeriod(n, notamPeriod, cancelledSet)) return;
-      counts[n.location || ''] = (counts[n.location || ''] || 0) + 1;
+      // Skip cancelled NOTAMs (C type)
+      const notamType = getNotamType(n.full_text);
+      if (notamType === 'C') return;
+      // Skip NOTAMs that have been cancelled by another NOTAM
+      if (n.notam_number && cancelledSet.has(n.notam_number)) return;
+      const effectiveLoc = getEffectiveLocation(n);
+      counts[effectiveLoc] = (counts[effectiveLoc] || 0) + 1;
     });
     return counts;
   };
   const notamCounts = getNotamCounts();
 
-  const locations = [...new Set(notamData?.data?.map(n => n.location).filter(Boolean) as string[])];
+  // Get unique locations (including FIR fallbacks)
+  const locations = [...new Set(notamData?.data?.map(n => getEffectiveLocation(n)).filter(Boolean) as string[])];
   // Only show locations with coordinates AND with NOTAMs in the current period
   const locationsWithCoords = locations.filter(loc => AIRPORT_COORDINATES[loc] && (notamCounts[loc] || 0) > 0);
 
@@ -543,32 +647,58 @@ const MapToggleSection: React.FC<MapToggleSectionProps> = ({ notamData, notamPer
 /**
  * NOTAM List Component
  */
-const NotamList: React.FC<NotamListProps> = ({ notamData, notamFilter, notamPeriod, notamLocationsOnMap, notamExpanded, setNotamExpanded }) => {
+const NotamList: React.FC<NotamListProps> = ({
+  notamData, notamFilter, notamPeriod, notamLocationsOnMap,
+  notamExpanded, setNotamExpanded,
+  pageSize, currentPage, setCurrentPage, onFilteredCountChange
+}) => {
   const cancelledSet = buildCancelledNotamSet(notamData.data || []);
 
-  const filtered = notamData.data?.filter(n => {
-    const matchMapFilter = notamLocationsOnMap.size === 0 || notamLocationsOnMap.has(n.location || '');
-    const matchSearch = !notamFilter ||
-      n.notam_number?.toLowerCase().includes(notamFilter.toLowerCase()) ||
-      n.location?.toLowerCase().includes(notamFilter.toLowerCase()) ||
-      n.e_text?.toLowerCase().includes(notamFilter.toLowerCase()) ||
-      n.qcode_mean?.toLowerCase().includes(notamFilter.toLowerCase());
-    // Use period-based filtering instead of just isNotamActive
-    const isInPeriod = isNotamInPeriod(n, notamPeriod, cancelledSet);
-    return matchMapFilter && matchSearch && isInPeriod;
-  }) || [];
+  const filtered = React.useMemo(() => {
+    return notamData.data?.filter(n => {
+      // Use effective location (fir fallback for NOTAMs without coordinate-mapped airports)
+      const effectiveLoc = getEffectiveLocation(n);
+      const matchMapFilter = notamLocationsOnMap.size === 0 || notamLocationsOnMap.has(effectiveLoc);
+      const matchSearch = !notamFilter ||
+        n.notam_number?.toLowerCase().includes(notamFilter.toLowerCase()) ||
+        n.location?.toLowerCase().includes(notamFilter.toLowerCase()) ||
+        n.e_text?.toLowerCase().includes(notamFilter.toLowerCase()) ||
+        n.qcode_mean?.toLowerCase().includes(notamFilter.toLowerCase());
+      // Skip cancelled NOTAMs (C type)
+      const notamType = getNotamType(n.full_text);
+      if (notamType === 'C') return false;
+      // Skip NOTAMs that have been cancelled by another NOTAM
+      if (n.notam_number && cancelledSet.has(n.notam_number)) return false;
+      // Note: Period filtering is done server-side by API, so we don't filter by period here
+      return matchMapFilter && matchSearch;
+    }) || [];
+  }, [notamData.data, notamLocationsOnMap, notamFilter, cancelledSet]);
+
+  // Report filtered count to parent
+  React.useEffect(() => {
+    onFilteredCountChange(filtered.length);
+  }, [filtered.length, onFilteredCountChange]);
+
+  // Reset to page 1 when filter changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [notamFilter, notamLocationsOnMap.size, setCurrentPage]);
 
   if (filtered.length === 0) {
     return <div className="notam-empty">해당 조건의 NOTAM이 없습니다.</div>;
   }
 
+  // Paginate
+  const startIdx = (currentPage - 1) * pageSize;
+  const paginatedNotams = filtered.slice(startIdx, startIdx + pageSize);
+
   return (
     <div className="notam-list">
-      {filtered.map((n, idx) => (
+      {paginatedNotams.map((n, idx) => (
         <NotamItem
-          key={n.id || idx}
+          key={n.id || (startIdx + idx)}
           notam={n}
-          idx={idx}
+          idx={startIdx + idx}
           cancelledSet={cancelledSet}
           notamExpanded={notamExpanded}
           setNotamExpanded={setNotamExpanded}
