@@ -77,13 +77,10 @@ interface NotamPanelProps {
   notamData: NotamDataResponse | null;
   notamLoading: boolean;
   notamError: string | null;
-  notamCacheAge: number | null;
 
   // Filters
   notamPeriod: string;
   setNotamPeriod: (period: string) => void;
-  notamLocationFilter: string;
-  setNotamLocationFilter: (filter: string) => void;
   notamFilter: string;
   setNotamFilter: (filter: string) => void;
 
@@ -109,7 +106,6 @@ interface NotamPanelProps {
 
 interface MapToggleSectionProps {
   notamData: NotamDataResponse | null;
-  notamPeriod: string;
   notamLocationsOnMap: Set<string>;
   setNotamLocationsOnMap: (locations: Set<string>) => void;
 }
@@ -117,7 +113,6 @@ interface MapToggleSectionProps {
 interface NotamListProps {
   notamData: NotamDataResponse;
   notamFilter: string;
-  notamPeriod: string;
   notamLocationsOnMap: Set<string>;
   notamExpanded: NotamExpandedState;
   setNotamExpanded: React.Dispatch<React.SetStateAction<NotamExpandedState>>;
@@ -144,13 +139,10 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
   notamData,
   notamLoading,
   notamError,
-  notamCacheAge,
 
   // Filters
   notamPeriod,
   setNotamPeriod,
-  notamLocationFilter,
-  setNotamLocationFilter,
   notamFilter,
   setNotamFilter,
 
@@ -260,7 +252,6 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
           {/* Map Toggle Section */}
           <MapToggleSection
             notamData={notamData}
-            notamPeriod={notamPeriod}
             notamLocationsOnMap={notamLocationsOnMap}
             setNotamLocationsOnMap={setNotamLocationsOnMap}
           />
@@ -304,7 +295,6 @@ const NotamPanel: React.FC<NotamPanelProps> = ({
               <NotamList
                 notamData={notamData}
                 notamFilter={notamFilter}
-                notamPeriod={notamPeriod}
                 notamLocationsOnMap={notamLocationsOnMap}
                 notamExpanded={notamExpanded}
                 setNotamExpanded={setNotamExpanded}
@@ -484,7 +474,7 @@ const getEffectiveLocation = (n: NotamDataItem): string => {
 /**
  * Map Toggle Section Component
  */
-const MapToggleSection: React.FC<MapToggleSectionProps> = ({ notamData, notamPeriod, notamLocationsOnMap, setNotamLocationsOnMap }) => {
+const MapToggleSection: React.FC<MapToggleSectionProps> = ({ notamData, notamLocationsOnMap, setNotamLocationsOnMap }) => {
 
   // Calculate NOTAM counts (period filtering is done server-side by API)
   const getNotamCounts = (): Record<string, number> => {
@@ -648,7 +638,7 @@ const MapToggleSection: React.FC<MapToggleSectionProps> = ({ notamData, notamPer
  * NOTAM List Component
  */
 const NotamList: React.FC<NotamListProps> = ({
-  notamData, notamFilter, notamPeriod, notamLocationsOnMap,
+  notamData, notamFilter, notamLocationsOnMap,
   notamExpanded, setNotamExpanded,
   pageSize, currentPage, setCurrentPage, onFilteredCountChange
 }) => {

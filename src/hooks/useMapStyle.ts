@@ -1,6 +1,6 @@
-/**
+﻿/**
  * useMapStyle Hook
- * 맵 스타일 및 뷰 모드 관리
+ * 留??ㅽ???諛?酉?紐⑤뱶 愿由?
  */
 import { useEffect, useRef, type MutableRefObject } from 'react';
 import type { Map as MapboxMap } from 'mapbox-gl';
@@ -42,12 +42,12 @@ const useMapStyle = ({
       return;
     }
 
-    // 기본 스타일 선택 (dark/light만 - 위성은 래스터 오버레이로 처리)
+    // 湲곕낯 ?ㅽ????좏깮 (dark/light留?- ?꾩꽦? ?섏뒪???ㅻ쾭?덉씠濡?泥섎━)
     const newStyle = isDarkMode ? MAP_STYLES.dark as string : MAP_STYLES.light as string;
 
     logger.debug('MapStyle', `Style check: showSatellite=${showSatellite}, isDarkMode=${isDarkMode}, newStyle=${newStyle}, prevStyle=${prevStyleRef.current}`);
 
-    // 스타일이 같으면 스킵
+    // ?ㅽ??쇱씠 媛숈쑝硫??ㅽ궢
     if (prevStyleRef.current === newStyle) {
       logger.debug('MapStyle', 'Style unchanged, skipping');
       return;
@@ -67,7 +67,7 @@ const useMapStyle = ({
       map.current.setCenter(center);
       map.current.setZoom(zoom);
 
-      // 3D 모드: 저장된 pitch가 있으면 복원, 없으면 기본 3D 값 적용
+      // 3D 紐⑤뱶: ??λ맂 pitch媛 ?덉쑝硫?蹂듭썝, ?놁쑝硫?湲곕낯 3D 媛??곸슜
       if (is3DView) {
         map.current.setPitch(pitch > 0 ? pitch : 60);
         map.current.setBearing(bearing !== 0 ? bearing : -30);
@@ -86,7 +86,7 @@ const useMapStyle = ({
         });
       }
 
-      // 3D 고도 표시가 활성화되면 terrain을 비활성화하여 MSL 기준 절대 고도로 표시
+      // 3D 怨좊룄 ?쒖떆媛 ?쒖꽦?붾릺硫?terrain??鍮꾪솢?깊솕?섏뿬 MSL 湲곗? ?덈? 怨좊룄濡??쒖떆
       if (is3DView && showTerrain && !show3DAltitude) {
         map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 2.5 });
       }
@@ -104,7 +104,7 @@ const useMapStyle = ({
         });
       }
 
-      // 3D 빌딩 추가
+      // 3D 鍮뚮뵫 異붽?
       try {
         if (!map.current.getLayer('3d-buildings') && map.current.getSource('composite')) {
           map.current.addLayer({
@@ -148,7 +148,7 @@ const useMapStyle = ({
         });
       }
 
-      // 스타일 리로드에서 3D 상태를 직접 처리했으므로 ref를 현재값으로 설정
+      // ?ㅽ???由щ줈?쒖뿉??3D ?곹깭瑜?吏곸젒 泥섎━?덉쑝誘濡?ref瑜??꾩옱媛믪쑝濡??ㅼ젙
       prev3DViewRef.current = is3DView;
 
       setMapLoaded(false);
@@ -156,46 +156,47 @@ const useMapStyle = ({
     });
   }, [map, isDarkMode, showSatellite, mapLoaded, setMapLoaded, is3DView, showTerrain, show3DAltitude]);
 
-  // Handle black background toggle - 단순 오버레이 방식
+  // Handle black background toggle - ?⑥닚 ?ㅻ쾭?덉씠 諛⑹떇
   useEffect(() => {
-    if (!map?.current || !mapLoaded) return;
-    if (!map.current.isStyleLoaded()) return;
+    const mapInstance = map.current;
+    if (!mapInstance || !mapLoaded) return;
+    if (!mapInstance.isStyleLoaded()) return;
 
     const blackOverlayId = 'radar-black-overlay';
 
-    // radarBlackBackground가 true면 검은 오버레이 표시
+    // radarBlackBackground媛 true硫?寃? ?ㅻ쾭?덉씠 ?쒖떆
     if (radarBlackBackground) {
-      if (!map.current.getLayer(blackOverlayId)) {
-        // 커스텀 레이어들 (항적, 항공기 등) 바로 아래에 검은 오버레이 추가
-        // 이렇게 하면 Mapbox 기본 레이어 위, 커스텀 레이어 아래에 위치
+        if (!mapInstance.getLayer(blackOverlayId)) {
+        // 而ㅼ뒪? ?덉씠?대뱾 (??쟻, ??났湲??? 諛붾줈 ?꾨옒??寃? ?ㅻ쾭?덉씠 異붽?
+        // ?대젃寃??섎㈃ Mapbox 湲곕낯 ?덉씠???? 而ㅼ뒪? ?덉씠???꾨옒???꾩튂
         const customLayerIds = [
           'aircraft-3d', 'aircraft-2d', 'aircraft-labels',
           'aircraft-trails-3d', 'aircraft-trails-2d', 'trail-layer',
           'waypoint-layer', 'airspace-layer', 'atc-sectors-fill'
         ];
 
-        // 존재하는 첫 번째 커스텀 레이어 찾기
+        // 議댁옱?섎뒗 泥?踰덉㎏ 而ㅼ뒪? ?덉씠??李얘린
         let beforeLayerId: string | undefined;
         for (const layerId of customLayerIds) {
-          if (map.current.getLayer(layerId)) {
+          if (mapInstance.getLayer(layerId)) {
             beforeLayerId = layerId;
             break;
           }
         }
 
-        map.current.addLayer({
+        mapInstance.addLayer({
           id: blackOverlayId,
           type: 'background',
           paint: {
             'background-color': '#000000',
             'background-opacity': 0.95
           }
-        }, beforeLayerId); // 커스텀 레이어 앞에 추가 = Mapbox 레이어 위, 커스텀 레이어 아래
+        }, beforeLayerId); // 而ㅼ뒪? ?덉씠???욎뿉 異붽? = Mapbox ?덉씠???? 而ㅼ뒪? ?덉씠???꾨옒
       }
     } else {
-      // 오버레이 제거
-      if (map.current.getLayer(blackOverlayId)) {
-        map.current.removeLayer(blackOverlayId);
+      // ?ㅻ쾭?덉씠 ?쒓굅
+      if (mapInstance.getLayer(blackOverlayId)) {
+        mapInstance.removeLayer(blackOverlayId);
       }
     }
   }, [map, radarBlackBackground, mapLoaded]);
@@ -210,16 +211,16 @@ const useMapStyle = ({
     const sourceId = 'satellite-overlay';
     const layerId = 'satellite-overlay-layer';
 
-    // 스타일 로드 대기 후 실행
+    // ?ㅽ???濡쒕뱶 ?湲????ㅽ뻾
     const toggleSatelliteLayer = () => {
       if (!map.current) return;
 
       try {
         if (showSatellite) {
-          // 위성 래스터 소스 추가
+          // ?꾩꽦 ?섏뒪???뚯뒪 異붽?
           if (!map.current.getSource(sourceId)) {
             if (vworldKey) {
-              // V-World 위성 (한국 고해상도)
+              // V-World ?꾩꽦 (?쒓뎅 怨좏빐?곷룄)
               logger.info('MapStyle', 'Adding V-World satellite source');
               map.current.addSource(sourceId, {
                 type: 'raster',
@@ -227,10 +228,10 @@ const useMapStyle = ({
                 tileSize: 256,
                 minzoom: 5,
                 maxzoom: 19,
-                attribution: '&copy; V-World (국토교통부)'
+                attribution: '&copy; V-World (援?넗援먰넻遺)'
               });
             } else {
-              // Mapbox 위성 (글로벌)
+              // Mapbox ?꾩꽦 (湲濡쒕쾶)
               logger.info('MapStyle', 'Adding Mapbox satellite source');
               map.current.addSource(sourceId, {
                 type: 'raster',
@@ -239,9 +240,9 @@ const useMapStyle = ({
               });
             }
           }
-          // 래스터 레이어 추가 (background 바로 위에)
+          // ?섏뒪???덉씠??異붽? (background 諛붾줈 ?꾩뿉)
           if (!map.current.getLayer(layerId)) {
-            // Mapbox 기본 레이어 중 첫 번째 비-background 레이어 찾기
+            // Mapbox 湲곕낯 ?덉씠??以?泥?踰덉㎏ 鍮?background ?덉씠??李얘린
             const layers = map.current.getStyle()?.layers || [];
             let firstNonBgLayer: string | undefined;
             for (const layer of layers) {
@@ -259,7 +260,7 @@ const useMapStyle = ({
             }, firstNonBgLayer);
           }
         } else {
-          // 위성 레이어/소스 제거
+          // ?꾩꽦 ?덉씠???뚯뒪 ?쒓굅
           if (map.current.getLayer(layerId)) {
             logger.info('MapStyle', 'Removing satellite layer');
             map.current.removeLayer(layerId);
@@ -273,7 +274,7 @@ const useMapStyle = ({
       }
     };
 
-    // 스타일이 로드되었으면 바로 실행, 아니면 대기
+    // ?ㅽ??쇱씠 濡쒕뱶?섏뿀?쇰㈃ 諛붾줈 ?ㅽ뻾, ?꾨땲硫??湲?
     if (map.current.isStyleLoaded()) {
       toggleSatelliteLayer();
     } else {
@@ -283,19 +284,20 @@ const useMapStyle = ({
 
   // Handle 2D/3D toggle - only animate when is3DView actually changes
   useEffect(() => {
-    if (!map?.current || !mapLoaded) return;
+    const mapInstance = map.current;
+    if (!mapInstance || !mapLoaded) return;
     // Skip if is3DView hasn't changed (e.g. mapLoaded toggled due to style switch)
     if (prev3DViewRef.current === is3DView) return;
     prev3DViewRef.current = is3DView;
 
     if (is3DView) {
-      // 이미 틸트된 상태(피치 리스너에 의한 전환)면 애니메이션 스킵
-      if (map.current.getPitch() < 10) {
-        map.current.easeTo({ pitch: 60, bearing: -30, duration: 1000 });
+      // ?대? ?명듃???곹깭(?쇱튂 由ъ뒪?덉뿉 ?섑븳 ?꾪솚)硫??좊땲硫붿씠???ㅽ궢
+      if (mapInstance.getPitch() < 10) {
+        mapInstance.easeTo({ pitch: 60, bearing: -30, duration: 1000 });
       }
-      // Terrain 활성화 (스타일 리로드 없이 3D 전환 시에도 동작하도록)
-      if (!map.current.getSource('mapbox-dem')) {
-        map.current.addSource('mapbox-dem', {
+      // Terrain ?쒖꽦??(?ㅽ???由щ줈???놁씠 3D ?꾪솚 ?쒖뿉???숈옉?섎룄濡?
+      if (!mapInstance.getSource('mapbox-dem')) {
+        mapInstance.addSource('mapbox-dem', {
           type: 'raster-dem',
           url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
           tileSize: 512,
@@ -303,12 +305,12 @@ const useMapStyle = ({
         });
       }
       if (showTerrain && !show3DAltitude) {
-        map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 2.5 });
+        mapInstance.setTerrain({ source: 'mapbox-dem', exaggeration: 2.5 });
       }
-      // 3D 빌딩 추가
+      // 3D 鍮뚮뵫 異붽?
       try {
-        if (!map.current.getLayer('3d-buildings') && map.current.getSource('composite')) {
-          map.current.addLayer({
+        if (!mapInstance.getLayer('3d-buildings') && mapInstance.getSource('composite')) {
+          mapInstance.addLayer({
             id: '3d-buildings',
             source: 'composite',
             'source-layer': 'building',
@@ -326,24 +328,24 @@ const useMapStyle = ({
         // composite source not available
       }
     } else {
-      // 이미 평면 상태(피치 리스너에 의한 전환)면 애니메이션 스킵
-      if (map.current.getPitch() > 5) {
-        map.current.easeTo({ pitch: 0, bearing: 0, duration: 1000 });
+      // ?대? ?됰㈃ ?곹깭(?쇱튂 由ъ뒪?덉뿉 ?섑븳 ?꾪솚)硫??좊땲硫붿씠???ㅽ궢
+      if (mapInstance.getPitch() > 5) {
+        mapInstance.easeTo({ pitch: 0, bearing: 0, duration: 1000 });
       }
-      map.current.setTerrain(null);
+      mapInstance.setTerrain(null);
     }
   }, [map, is3DView, mapLoaded, showTerrain, show3DAltitude]);
 
-  // 피치 변화에 따른 2D/3D 자동 전환
+  // ?쇱튂 蹂?붿뿉 ?곕Ⅸ 2D/3D ?먮룞 ?꾪솚
   useEffect(() => {
-    if (!map?.current || !mapLoaded) return;
+    const mapInstance = map.current;
+    if (!mapInstance || !mapLoaded) return;
 
-    const PITCH_3D_THRESHOLD = 15; // pitch > 15 → 3D로 전환
-    const PITCH_2D_THRESHOLD = 5;  // pitch < 5 → 2D로 전환
+    const PITCH_3D_THRESHOLD = 15; // pitch > 15 ??3D濡??꾪솚
+    const PITCH_2D_THRESHOLD = 5;  // pitch < 5 ??2D濡??꾪솚
 
     const handlePitchEnd = () => {
-      if (!map.current) return;
-      const currentPitch = map.current.getPitch();
+      const currentPitch = mapInstance.getPitch();
 
       if (!is3DView && currentPitch > PITCH_3D_THRESHOLD) {
         setIs3DView(true);
@@ -352,11 +354,12 @@ const useMapStyle = ({
       }
     };
 
-    map.current.on('pitchend', handlePitchEnd);
+    mapInstance.on('pitchend', handlePitchEnd);
     return () => {
-      map.current?.off('pitchend', handlePitchEnd);
+      mapInstance.off('pitchend', handlePitchEnd);
     };
   }, [map, mapLoaded, is3DView, setIs3DView]);
 };
 
 export default useMapStyle;
+
