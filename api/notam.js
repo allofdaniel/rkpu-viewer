@@ -6,9 +6,10 @@ const STATIC_FALLBACK_URL = 'https://tbas.vercel.app/data/notams.json';
 // ============================================================
 // Supabase 설정
 // ============================================================
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ugzsuswrazaimvpyloqw.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const SUPABASE_PUBLIC = `${SUPABASE_URL}/storage/v1/object/public/notam-data`;
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').trim();
+const SUPABASE_SERVICE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+const SUPABASE_PUBLIC = SUPABASE_URL ? `${SUPABASE_URL}/storage/v1/object/public/notam-data` : '';
+const HAS_SUPABASE_BACKEND = Boolean(SUPABASE_URL && SUPABASE_SERVICE_KEY);
 
 // ============================================================
 // 유틸리티 함수
@@ -34,7 +35,8 @@ function parseNotamCoordinates(fullText) {
 }
 
 function isInBounds(lat, lon, bounds, margin = 1) {
-  if (!bounds || !lat || !lon) return true;
+  if (bounds == null) return true;
+  if (lat == null || lon == null || Number.isNaN(lat) || Number.isNaN(lon)) return true;
   return (
     lat >= bounds.south - margin &&
     lat <= bounds.north + margin &&
@@ -43,24 +45,50 @@ function isInBounds(lat, lon, bounds, margin = 1) {
   );
 }
 
+// YYMMDDHHMM, ISO 8601, 'PERM' 모두 처리. 빈 값/파싱불가 → null.
 function parseNotamDate(dateStr) {
-  if (!dateStr || dateStr.length < 6) return null;
-  const year = 2000 + parseInt(dateStr.substring(0, 2), 10);
-  const month = parseInt(dateStr.substring(2, 4), 10) - 1;
-  const day = parseInt(dateStr.substring(4, 6), 10);
-  const hour = dateStr.length >= 8 ? parseInt(dateStr.substring(6, 8), 10) : 0;
-  const minute = dateStr.length >= 10 ? parseInt(dateStr.substring(8, 10), 10) : 0;
-  return new Date(year, month, day, hour, minute);
+  if (!dateStr) return null;
+  const s = String(dateStr).trim();
+  if (!s) return null;
+  const upper = s.toUpperCase();
+  if (upper === 'PERM' || upper === 'PERMANENT') return new Date(Date.UTC(2099, 11, 31));
+  // YYMMDDHHMM
+  if (/^\d{10}$/.test(s)) {
+    const year = 2000 + parseInt(s.substring(0, 2), 10);
+    const month = parseInt(s.substring(2, 4), 10) - 1;
+    const day = parseInt(s.substring(4, 6), 10);
+    const hour = parseInt(s.substring(6, 8), 10);
+    const minute = parseInt(s.substring(8, 10), 10);
+    return new Date(Date.UTC(year, month, day, hour, minute));
+  }
+  // YYMMDDHH (8자리), YYMMDD (6자리)
+  if (/^\d{6,8}$/.test(s)) {
+    const year = 2000 + parseInt(s.substring(0, 2), 10);
+    const month = parseInt(s.substring(2, 4), 10) - 1;
+    const day = parseInt(s.substring(4, 6), 10);
+    const hour = s.length >= 8 ? parseInt(s.substring(6, 8), 10) : 0;
+    return new Date(Date.UTC(year, month, day, hour, 0));
+  }
+  // ISO 8601 (e.g. 2026-01-19T08:26:00Z)
+  const iso = new Date(s);
+  if (!isNaN(iso.getTime())) return iso;
+  return null;
 }
 
-function extractNotamDates(fullText) {
-  if (!fullText) return { start: null, end: null };
-  const startMatch = fullText.match(/B\)\s*(\d{10})/);
-  const start = startMatch ? parseNotamDate(startMatch[1]) : null;
-  const endMatch = fullText.match(/C\)\s*(\d{10}|PERM)/);
-  let end = null;
-  if (endMatch) {
-    end = endMatch[1] === 'PERM' ? new Date(2099, 11, 31) : parseNotamDate(endMatch[1]);
+// effective_start/effective_end 컬럼 우선, full_text의 B)/C) 라인 fallback.
+function extractNotamDates(notam) {
+  let start = parseNotamDate(notam?.effective_start);
+  let end = parseNotamDate(notam?.effective_end);
+  const fullText = notam?.full_text;
+  if ((!start || !end) && fullText) {
+    if (!start) {
+      const m = fullText.match(/B\)\s*(\d{10})/);
+      if (m) start = parseNotamDate(m[1]);
+    }
+    if (!end) {
+      const m = fullText.match(/C\)\s*(\d{10}|PERM)/);
+      if (m) end = parseNotamDate(m[1]);
+    }
   }
   return { start, end };
 }
@@ -68,7 +96,7 @@ function extractNotamDates(fullText) {
 function isValidInPeriod(notam, period) {
   if (!period || period === 'all') return true;
   const now = new Date();
-  const { start, end } = extractNotamDates(notam.full_text);
+  const { start, end } = extractNotamDates(notam);
 
   if (period === 'current') {
     if (start && start > now) return false;
@@ -100,7 +128,14 @@ async function fetchFromDatabase(params) {
   const { limit, period, bounds } = params;
 
   const queryParams = new URLSearchParams();
-  queryParams.set('select', 'notam_number,location,full_text,e_text,qcode,qcode_mean,effective_start,effective_end,series,fir,q_lat,q_lon,q_radius_nm,crawled_at');
+  // 통합 크롤러가 추가하는 신규 컬럼(notam_type, ref_notam, traffic, purpose, scope,
+  // data_source, q_lower_alt, q_upper_alt)도 함께 select. 없는 컬럼은 PostgREST가 무시.
+  queryParams.set(
+    'select',
+    'notam_number,location,full_text,e_text,qcode,qcode_mean,effective_start,effective_end,'
+    + 'series,fir,q_lat,q_lon,q_radius_nm,q_lower_alt,q_upper_alt,'
+    + 'notam_type,ref_notam,traffic,purpose,scope,data_source,crawled_at',
+  );
   queryParams.set('order', 'crawled_at.desc,notam_number.desc');
   queryParams.set('limit', String(limit > 0 ? limit : 2000));
 
@@ -146,6 +181,14 @@ async function fetchFromDatabase(params) {
     q_lat: row.q_lat,
     q_lon: row.q_lon,
     q_radius: row.q_radius_nm,
+    q_lower_alt: row.q_lower_alt,
+    q_upper_alt: row.q_upper_alt,
+    notam_type: row.notam_type,
+    ref_notam: row.ref_notam,
+    traffic: row.traffic,
+    purpose: row.purpose,
+    scope: row.scope,
+    data_source: row.data_source,
   }));
 
   // 기간 필터
@@ -203,8 +246,68 @@ function flattenAimData(aimData) {
   return items;
 }
 
+async function fetchStaticFallback() {
+  try {
+    const fallbackResponse = await fetch(STATIC_FALLBACK_URL);
+    if (!fallbackResponse.ok) {
+      console.warn('Static fallback failed:', fallbackResponse.status);
+      return null;
+    }
+
+    const data = await fallbackResponse.json();
+    const list = Array.isArray(data) ? data : [];
+
+    if (!Array.isArray(list)) {
+      return null;
+    }
+
+    return list.map((item) => ({
+      notam_number: item.notam_id || item.notam_number || '',
+      location: item.location || item.icao || '',
+      full_text: item.full_text || '',
+      e_text: item.message || item.e_text || '',
+      qcode: item.qcode || item.type || '',
+      qcode_mean: item.qcode_desc || item.qcode_mean || '',
+      effective_start: item.effectiveStart || item.effective_start || '',
+      effective_end: item.effectiveEnd || item.effective_end || '',
+      series: item.series || '',
+      fir: item.fir || '',
+      q_lat: item.latitude || item.q_lat,
+      q_lon: item.longitude || item.q_lon,
+      q_radius: item.radius || item.q_radius,
+      crawled_at: null,
+    }));
+  } catch (error) {
+    console.warn('Static fallback error:', error.message);
+    return null;
+  }
+}
+
 async function fetchFromStorage(params) {
-  const { limit, period, bounds } = params;
+  const { period, bounds } = params;
+
+  if (!SUPABASE_PUBLIC) {
+    console.warn('Supabase storage URL is not configured, using static fallback');
+    const staticFallback = await fetchStaticFallback();
+    if (staticFallback) {
+      return {
+        data: staticFallback,
+        count: staticFallback.length,
+        afterPeriodFilter: staticFallback.length,
+        source: 'static-fallback',
+        file: 'http-fallback',
+        crawled_at: null,
+      };
+    }
+    return {
+      data: [],
+      count: 0,
+      afterPeriodFilter: 0,
+      source: 'static-fallback',
+      file: 'http-fallback',
+      crawled_at: null,
+    };
+  }
 
   const today = new Date().toISOString().split('T')[0];
   let latestPath = `notam_realtime/${today}/notam_latest.json`;
@@ -237,19 +340,13 @@ async function fetchFromStorage(params) {
 
   // If storage failed or returned empty, use HTTP fallback
   if (isEmptyData(rawData)) {
-    console.log('Storage unavailable or empty, fetching from static fallback URL');
-    try {
-      const fallbackResponse = await fetch(STATIC_FALLBACK_URL);
-      if (fallbackResponse.ok) {
-        rawData = await fallbackResponse.json();
-        usedStaticFallback = true;
-        latestPath = 'http-fallback';
-        console.log(`HTTP fallback loaded ${rawData?.length || 0} items`);
-      } else {
-        console.warn('HTTP fallback failed:', fallbackResponse.status);
-      }
-    } catch (httpError) {
-      console.warn('HTTP fallback error:', httpError.message);
+    console.info('Storage unavailable or empty, fetching from static fallback URL');
+    const fallbackItems = await fetchStaticFallback();
+    if (fallbackItems) {
+      rawData = fallbackItems;
+      usedStaticFallback = true;
+      latestPath = 'http-fallback';
+      console.info(`HTTP fallback loaded ${fallbackItems.length} items`);
     }
   }
 
@@ -273,9 +370,11 @@ async function fetchFromStorage(params) {
       q_lon: item.longitude || item.q_lon,
       q_radius: item.radius || item.q_radius,
     }));
-  } else {
+  } else if (rawData && typeof rawData === 'object') {
     // AIM format (object with domestic/international structure)
     notamData = flattenAimData(rawData);
+  } else {
+    notamData = [];
   }
   const totalCount = notamData.length;
 
@@ -330,7 +429,7 @@ export default async function handler(req, res) {
     let result;
 
     // DB 우선 → Storage 폴백 → Static 폴백
-    if (SUPABASE_SERVICE_KEY) {
+    if (HAS_SUPABASE_BACKEND) {
       try {
         result = await fetchFromDatabase(params);
         // DB에 데이터가 없으면 Storage 폴백
@@ -351,6 +450,14 @@ export default async function handler(req, res) {
     if (limit > 0 && notamData.length > limit) {
       notamData = notamData.slice(0, limit);
     }
+
+    // 응답에 출처 분포 포함 (운영 가시성)
+    const bySource = {};
+    for (const n of notamData) {
+      const k = n.data_source || 'UNKNOWN';
+      bySource[k] = (bySource[k] || 0) + 1;
+    }
+    meta.by_source = bySource;
 
     // Content-Type 명시적 설정 (브라우저 호환성)
     res.setHeader('Content-Type', 'application/json; charset=utf-8');

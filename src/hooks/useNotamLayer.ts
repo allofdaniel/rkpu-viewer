@@ -53,18 +53,20 @@ export default function useNotamLayer(
     // Build set of cancelled NOTAMs first
     const cancelledSet = buildCancelledNotamSet(notamData.data);
 
-    // Filter NOTAMs: only selected locations, only currently active (not future), exclude expired
+    // Filter NOTAMs: only selected locations, exclude expired/cancelled
+    // active와 future 모두 표시 (이전엔 active만 → 너무 적게 보였음)
     const validNotams = notamData.data.filter((n: NotamItem) => {
       // Must be in selected locations
       if (!notamLocationsOnMap.has(n.location)) return false;
-      // Check if currently active only (not future, not expired/cancelled)
+      // active 또는 future 둘 다 허용 (false=expired/cancelled만 제외)
       const validity = getNotamValidity(n, cancelledSet);
-      if (validity !== 'active') return false;
-      // Must have coordinates (Q-line or airport fallback)
+      if (validity !== 'active' && validity !== 'future') return false;
+      // Must have coordinates (Q-line, q_lat/q_lon, or airport fallback)
       const coords = getNotamDisplayCoords(n);
       if (!coords) return false;
-      // Exclude NOTAMs with very large radius (100+ NM) that cover large portions of map
-      if (coords.radiusNM && coords.radiusNM >= 100) return false;
+      // FIR-wide NOTAM (radius 999) 만 제외 — 이건 맵 전체를 덮음
+      // 999는 ICAO 표준에서 'whole FIR' 마커
+      if (coords.radiusNM && coords.radiusNM >= 999) return false;
       return true;
     });
 

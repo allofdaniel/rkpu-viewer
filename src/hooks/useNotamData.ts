@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+﻿import { useState, useCallback, useEffect, useRef } from 'react';
 import { NOTAM_CACHE_DURATION } from '../constants/config';
 import type { NotamItem, NotamData } from './useNotam';
 import { logger } from '../utils/logger';
@@ -9,29 +9,29 @@ interface CacheEntry {
 }
 
 /**
- * useNotamData - NOTAM 데이터 관리 훅
- * - 메모리 캐시 관리
- * - 데이터 fetching
- * - 기간별 필터링
+ * useNotamData - NOTAM ?곗씠??愿由???
+ * - 硫붾え由?罹먯떆 愿由?
+ * - ?곗씠??fetching
+ * - 湲곌컙蹂??꾪꽣留?
  */
 
 // NOTAM Memory Cache (module level for persistence)
 const notamMemoryCache: Record<string, CacheEntry> = {};
 
-// NOTAM 메모리 캐시 헬퍼 함수
+// NOTAM 硫붾え由?罹먯떆 ?ы띁 ?⑥닔
 const getNotamCache = (period: string): NotamData | null => {
   const cached = notamMemoryCache[period];
   if (!cached) return null;
 
   const now = Date.now();
 
-  // 캐시가 유효한지 확인 (10분 이내)
+  // 罹먯떆媛 ?좏슚?쒖? ?뺤씤 (10遺??대궡)
   if (now - cached.timestamp < NOTAM_CACHE_DURATION) {
     logger.debug('NOTAM', `Memory cache hit for period: ${period}, age: ${Math.round((now - cached.timestamp) / 1000)}s`);
     return cached.data;
   }
 
-  // 만료된 캐시 삭제
+  // 留뚮즺??罹먯떆 ??젣
   delete notamMemoryCache[period];
   return null;
 };
@@ -78,10 +78,10 @@ export interface UseNotamDataReturn {
 }
 
 /**
- * DO-278A 요구사항 추적: SRS-DATA-001 (NOTAM 데이터 관리)
- * - 메모리 캐시 관리 (10분 유효)
- * - 자동 데이터 fetching
- * - 기간별 필터링
+ * DO-278A ?붽뎄?ы빆 異붿쟻: SRS-DATA-001 (NOTAM ?곗씠??愿由?
+ * - 硫붾え由?罹먯떆 愿由?(10遺??좏슚)
+ * - ?먮룞 ?곗씠??fetching
+ * - 湲곌컙蹂??꾪꽣留?
  */
 export default function useNotamData(): UseNotamDataReturn {
   const [notamData, setNotamData] = useState<NotamData | null>(null);
@@ -89,8 +89,8 @@ export default function useNotamData(): UseNotamDataReturn {
   const [notamError, setNotamError] = useState<string | null>(null);
   const [notamCacheAge, setNotamCacheAge] = useState<number | null>(null);
   const [notamPeriod, setNotamPeriod] = useState('current'); // 'current', '1month', '1year', 'all'
-  const [notamFilter, setNotamFilter] = useState(''); // 필터링용 검색어
-  const [notamLocationFilter, setNotamLocationFilter] = useState(''); // 전체 지역
+  const [notamFilter, setNotamFilter] = useState(''); // ?꾪꽣留곸슜 寃?됱뼱
+  const [notamLocationFilter, setNotamLocationFilter] = useState(''); // ?꾩껜 吏??
   const [notamExpanded, setNotamExpanded] = useState<Record<string, boolean>>({});
   const [notamLocationsOnMap, setNotamLocationsOnMap] = useState<Set<string>>(new Set()); // e.g., Set(['RKPU', 'RKTN'])
   const [notamHealth, setNotamHealth] = useState<NotamHealthStatus>({
@@ -101,21 +101,25 @@ export default function useNotamData(): UseNotamDataReturn {
   });
 
   // NOTAM data fetching with caching - always use complete DB with period filtering
-  // DO-278A 요구사항 추적: SRS-DATA-002 (캐시 및 폴백 처리)
-  const fetchNotamData = useCallback(async (period: string, forceRefresh = false): Promise<void> => {
-    // 1. 먼저 캐시 확인 (강제 새로고침이 아닌 경우)
+  // DO-278A ?붽뎄?ы빆 異붿쟻: SRS-DATA-002 (罹먯떆 諛??대갚 泥섎━)
+  const fetchNotamData = useCallback(async (period: string, forceRefresh = false, silent = false): Promise<void> => {
+    // 1. 癒쇱? 罹먯떆 ?뺤씤 (媛뺤젣 ?덈줈怨좎묠???꾨땶 寃쎌슦)
     if (!forceRefresh) {
       const cachedData = getNotamCache(period);
       if (cachedData) {
-        setNotamData(cachedData);
-        setNotamCacheAge(getNotamCacheAge(period));
-        setNotamLoading(false);
+        if (!silent) {
+          setNotamData(cachedData);
+          setNotamCacheAge(getNotamCacheAge(period));
+          setNotamLoading(false);
+        }
         return;
       }
     }
 
-    setNotamLoading(true);
-    setNotamError(null);
+    if (!silent) {
+      setNotamLoading(true);
+      setNotamError(null);
+    }
     try {
       let response: Response;
       let usedFallback = false;
@@ -131,9 +135,9 @@ export default function useNotamData(): UseNotamDataReturn {
         response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        // Content-Type 검증 완화 (Vite dev server나 일부 환경에서 헤더가 없을 수 있음)
+        // Content-Type 寃利??꾪솕 (Vite dev server???쇰? ?섍꼍?먯꽌 ?ㅻ뜑媛 ?놁쓣 ???덉쓬)
         const contentType = response.headers.get('content-type');
-        // Content-Type이 있고 명시적으로 HTML인 경우만 에러
+        // Content-Type???덇퀬 紐낆떆?곸쑝濡?HTML??寃쎌슦留??먮윭
         if (contentType && contentType.includes('text/html')) {
           throw new Error('Response is HTML, not JSON (likely dev server fallback)');
         }
@@ -157,6 +161,7 @@ export default function useNotamData(): UseNotamDataReturn {
           effectiveStart?: string;
           effectiveEnd?: string;
           message?: string;
+          full_text?: string;
           type?: string;
           latitude?: number;
           longitude?: number;
@@ -168,14 +173,14 @@ export default function useNotamData(): UseNotamDataReturn {
           id: item.notam_id || `local-${index}`,
           notam_number: item.notam_id || `LOCAL-${index}`,
           location: item.location || item.icao || 'UNKNOWN',
-          qcode: item.type || 'MISC',
-          qcode_mean: item.type || 'Miscellaneous',
+          qcode: String(item.qcode || item.type || 'MISC'),
+          qcode_mean: String((item as Record<string, unknown>).qcode_desc || item.type || 'Miscellaneous'),
           e_text: item.message || '',
-          full_text: item.message || '',
+          full_text: String(item.full_text || item.message || ''),
           effective_start: item.effectiveStart?.replace(/[-:TZ]/g, '').substring(2, 12) || '',
           effective_end: item.effectiveEnd?.replace(/[-:TZ]/g, '').substring(2, 12) || 'PERM',
-          series: 'A',
-          fir: 'RKRR',
+          series: (item.series as string) || 'A',
+          fir: (item.fir as string) || 'RKRR',
           q_lat: item.latitude,
           q_lon: item.longitude,
           q_radius: item.radius,
@@ -190,44 +195,72 @@ export default function useNotamData(): UseNotamDataReturn {
         json = rawData as NotamData;
       }
 
-      // 2. 캐시에 저장
+      // 2. 罹먯떆?????
       if (usedFallback) {
         json.source = 'local-demo';
         logger.info('NOTAM', 'Using local demo data');
       }
       setNotamCache(period, json);
-      setNotamCacheAge(0);
-
-      setNotamData(json);
-      setNotamHealth({
-        isConnected: true,
-        lastSuccessTime: Date.now(),
-        notamCount: json.data?.length || 0,
-        source: json.source || 'api'
-      });
+      if (!silent) {
+        setNotamCacheAge(0);
+        setNotamData(json);
+        setNotamHealth({
+          isConnected: true,
+          lastSuccessTime: Date.now(),
+          notamCount: json.data?.length || 0,
+          source: json.source || 'api'
+        });
+      }
     } catch (e) {
-      logger.error('NOTAM', 'Fetch failed', e as Error);
-      setNotamError((e as Error).message);
-      setNotamHealth(prev => ({ ...prev, isConnected: false }));
+      logger.error('NOTAM', `Fetch failed (period=${period}, silent=${silent})`, e as Error);
+      if (!silent) {
+        setNotamError((e as Error).message);
+        setNotamHealth(prev => ({ ...prev, isConnected: false }));
+      }
 
-      // 3. 네트워크 에러 시 만료된 메모리 캐시라도 사용 시도
-      const expiredCache = notamMemoryCache[period];
-      if (expiredCache) {
-        setNotamData(expiredCache.data);
-        setNotamError('캐시된 데이터 사용 중 (네트워크 오류)');
+      // 3. ?ㅽ듃?뚰겕 ?먮윭 ??留뚮즺??硫붾え由?罹먯떆?쇰룄 ?ъ슜 ?쒕룄
+      // 네트워크 에러 시 만료된 메모리 캐시라도 사용 (silent 모드는 화면 안 건드림)
+      if (!silent) {
+        const expiredCache = notamMemoryCache[period];
+        if (expiredCache) {
+          setNotamData(expiredCache.data);
+          setNotamError('캐시된 데이터 사용 중 (네트워크 오류)');
+        }
       }
     } finally {
-      setNotamLoading(false);
+      if (!silent) setNotamLoading(false);
     }
-  }, []); // dependency 제거 - period는 인자로 전달
+  }, []);
 
   // Fetch NOTAM on page load and when period changes
-  // DO-278A 요구사항 추적: SRS-DATA-003 (자동 데이터 로드)
   useEffect(() => {
-    // 페이지 로드 시 자동으로 NOTAM 데이터 fetch
-    fetchNotamData(notamPeriod);
-  }, [notamPeriod]); // fetchNotamData 제거 - 무한 루프 방지
+    void fetchNotamData(notamPeriod);
+  }, [notamPeriod, fetchNotamData]);
 
+  // 백그라운드 prefetch — 첫 mount 시 한 번만 실행.
+  // current 로딩 끝난 후 1month/1year/all을 캐시에 미리 채워둠.
+  // 사용자가 period 드롭다운을 바꿔도 즉시 cache hit (네트워크 0초).
+  const prefetchedRef = useRef(false);
+  useEffect(() => {
+    if (prefetchedRef.current) return;
+    prefetchedRef.current = true;
+    const t = setTimeout(() => {
+      const w = window as unknown as {
+        requestIdleCallback?: (cb: IdleRequestCallback, opts?: { timeout: number }) => number;
+      };
+      const idle = w.requestIdleCallback || ((cb: IdleRequestCallback) =>
+        setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline), 50));
+      ['1month', '1year', 'all']
+        .filter(p => p !== notamPeriod)
+        .forEach((p, i) => {
+          setTimeout(() => {
+            idle(() => { void fetchNotamData(p, false, true); }, { timeout: 5000 });
+          }, i * 1500);
+        });
+    }, 2500);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return {
     notamData,
     setNotamData,

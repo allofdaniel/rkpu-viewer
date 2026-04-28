@@ -22,6 +22,14 @@ export const MAPBOX_ACCESS_TOKEN: string = mapboxToken || '';
 // 항공기 업데이트 간격 (밀리초) - 429 오류 방지를 위해 15초로 설정
 export const AIRCRAFT_UPDATE_INTERVAL = 15000;
 
+// 항적 조회 중심 좌표 (한반도 중앙) - data.airport와 별도로 항적 API 전용
+// 한반도 + 인근 FIR (도쿄/상해/평양/블라디보스톡) 트래픽 커버용
+export const AIRCRAFT_QUERY_CENTER_LAT = 36.5;   // 한반도 중앙 위도
+export const AIRCRAFT_QUERY_CENTER_LON = 127.8;  // 한반도 중앙 경도
+// 항적 조회 반경 (NM). 500 NM ≈ 926 km — airplanes.live `point` 엔드포인트 최대값
+// 한반도 전체 + 주변 항적 (일본 서부, 중국 동부, 동해 전역)
+export const AIRCRAFT_QUERY_RADIUS_NM = 500;
+
 // NOTAM 캐시 설정
 export const NOTAM_CACHE_DURATION = 10 * 60 * 1000; // 10분
 

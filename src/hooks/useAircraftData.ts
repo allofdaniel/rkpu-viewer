@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ftToM, isValidCoordinate } from '../utils/geometry';
-import { getAircraftApiUrl, getAircraftTraceUrl, AIRCRAFT_UPDATE_INTERVAL } from '../constants/config';
+import {
+  getAircraftApiUrl,
+  getAircraftTraceUrl,
+  AIRCRAFT_UPDATE_INTERVAL,
+  AIRCRAFT_QUERY_CENTER_LAT,
+  AIRCRAFT_QUERY_CENTER_LON,
+  AIRCRAFT_QUERY_RADIUS_NM,
+} from '../constants/config';
 import type { AviationData } from './useDataLoading';
 import { logger } from '../utils/logger';
 
@@ -177,8 +184,16 @@ export default function useAircraftData(
     const signal = abortControllerRef.current.signal;
 
     try {
-      const { lat, lon } = data.airport;
-      const response = await fetch(getAircraftApiUrl(lat, lon, 100), { signal });
+      // 항적은 한반도 전체 + 인근 FIR 트래픽까지 커버하기 위해
+      // data.airport(공항 정보 패널/기상 레이더용)와 별도로 한반도 중심 좌표 + 400NM 사용
+      const response = await fetch(
+        getAircraftApiUrl(
+          AIRCRAFT_QUERY_CENTER_LAT,
+          AIRCRAFT_QUERY_CENTER_LON,
+          AIRCRAFT_QUERY_RADIUS_NM,
+        ),
+        { signal },
+      );
 
       // 429 Too Many Requests 처리
       if (response.status === 429) {
