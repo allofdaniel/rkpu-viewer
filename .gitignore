@@ -1,4 +1,4 @@
-.vercel
+﻿.vercel
 node_modules
 dist
 .env
@@ -11,3 +11,18 @@ __pycache__
 .DS_Store
 Thumbs.db
 *.backup
+.env*.local
+# Local QA artifacts and transient screenshots
+/vercel-dev.log
+/lint_full.log
+/qa_*.png
+/test_*.png
+/*screenshot*.png
+/*_click.png
+/final_test*.png
+/context_menu_test*.png
+/rightclick_screenshot.png
+/photo_test_*.png
+_archive/
+.vercel
+.env*.local

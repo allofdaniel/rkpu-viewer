@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { AIRPORT_DATABASE } from '../constants/airports';
 import { ICAO_TO_IATA } from '../constants/aircraft';
 import { AIRPORT_ICAO_TO_IATA } from '../constants/airports';
@@ -122,6 +122,9 @@ export default function useSelectedAircraft(selectedAircraft: AircraftData | nul
     const hex = selectedAircraft.hex?.toUpperCase();
     const reg = selectedAircraft.registration;
 
+    let cancelled = false;
+    const controller = new AbortController();
+
     // Vercel API Route를 통한 사진 조회 (CORS 해결)
     const fetchPhoto = async () => {
       try {
@@ -129,22 +132,28 @@ export default function useSelectedAircraft(selectedAircraft: AircraftData | nul
         if (hex) params.append('hex', hex);
         if (reg) params.append('reg', reg);
 
-        const res = await fetch(`/api/aircraft-photo?${params}`);
+        const res = await fetch(`/api/aircraft-photo?${params}`, { signal: controller.signal });
+        if (cancelled) return;
         const data = await res.json();
 
-        if (data.image) {
+        if (!cancelled && data.image) {
           setAircraftPhoto(data);
         }
-        setAircraftPhotoLoading(false);
+        if (!cancelled) setAircraftPhotoLoading(false);
       } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
         logger.warn('Aircraft', 'Failed to fetch aircraft photo', { error: (err as Error).message });
-        setAircraftPhotoLoading(false);
+        if (!cancelled) setAircraftPhotoLoading(false);
       }
     };
 
     fetchPhoto();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: only re-fetch when hex changes
-  }, [selectedAircraft?.hex]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: only re-fetch when identity changes
+  }, [selectedAircraft?.hex, selectedAircraft?.registration]);
 
   // Fetch aircraft details from hexdb.io when selectedAircraft changes
   useEffect(() => {
@@ -161,7 +170,7 @@ export default function useSelectedAircraft(selectedAircraft: AircraftData | nul
 
     const fetchDetails = async () => {
       try {
-        const res = await fetch(`https://hexdb.io/api/v1/aircraft/${hex}`);
+        const res = await fetch(`/api/aircraft-details?hex=${hex}`);
         if (res.ok) {
           const data = await res.json();
           setAircraftDetails(data);
@@ -458,9 +467,7 @@ export default function useSelectedAircraft(selectedAircraft: AircraftData | nul
 
         // 2차: OpenSky REST tracks API (제한된 데이터)
         logger.debug('FlightTrack', `Falling back to OpenSky REST API for ${hex}`);
-        const res = await fetch(
-          `https://opensky-network.org/api/tracks/all?icao24=${hex}&time=0`
-        );
+        const res = await fetch(`/api/aircraft-track?hex=${hex}&time=0`);
         if (res.ok) {
           const data = await res.json();
           logger.debug('FlightTrack', 'OpenSky REST response received', { pathLength: data?.path?.length || 0 });

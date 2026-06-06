@@ -1,0 +1,35 @@
+# Large directories
+android
+ios
+node_modules
+coverage
+eaip-crawler
+ubikais-crawler
+.git
+.github
+
+# Build artifacts
+*.log
+*.map
+
+# Test files
+*.test.*
+__tests__
+
+# Screenshots and images (but allow charts folder)
+*.png
+*.jpg
+*.jpeg
+*.gif
+!charts/**/*.png
+!public/charts/**/*.png
+!dist/charts/**/*.png
+
+# Python files
+*.py
+
+# Database files
+*.db
+
+# Docs
+docs

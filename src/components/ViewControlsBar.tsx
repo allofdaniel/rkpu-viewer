@@ -51,11 +51,8 @@ interface ViewControlsBarProps {
   notamData: NotamDataResponse | null;
   notamLoading: boolean;
   notamError: string | null;
-  notamCacheAge: number | null;
   notamPeriod: string;
   setNotamPeriod: (period: string) => void;
-  notamLocationFilter: string;
-  setNotamLocationFilter: (filter: string) => void;
   notamFilter: string;
   setNotamFilter: (filter: string) => void;
   notamExpanded: NotamExpandedState;
@@ -93,11 +90,8 @@ const ViewControlsBar: React.FC<ViewControlsBarProps> = React.memo(({
   notamData,
   notamLoading,
   notamError,
-  notamCacheAge,
   notamPeriod,
   setNotamPeriod,
-  notamLocationFilter,
-  setNotamLocationFilter,
   notamFilter,
   setNotamFilter,
   notamExpanded,
@@ -134,11 +128,8 @@ const ViewControlsBar: React.FC<ViewControlsBarProps> = React.memo(({
         notamData={notamData}
         notamLoading={notamLoading}
         notamError={notamError}
-        notamCacheAge={notamCacheAge}
         notamPeriod={notamPeriod}
         setNotamPeriod={setNotamPeriod}
-        notamLocationFilter={notamLocationFilter}
-        setNotamLocationFilter={setNotamLocationFilter}
         notamFilter={notamFilter}
         setNotamFilter={setNotamFilter}
         notamExpanded={notamExpanded}

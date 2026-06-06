@@ -1,4 +1,4 @@
-/**
+﻿/**
  * useChartOverlay Hook
  * 차트 오버레이 레이어 관리 (멀티 공항 지원)
  */
@@ -28,6 +28,13 @@ const useChartOverlay = (
   const prevLayersRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    console.log('[ChartOverlay] Effect triggered:', {
+      hasMap: !!map?.current,
+      mapLoaded,
+      selectedAirport,
+      chartCount: Object.keys(allChartBounds?.[selectedAirport] || {}).length,
+      activeCharts: Object.entries(activeCharts).filter(([, v]) => v).map(([k]) => k)
+    });
     if (!map?.current || !mapLoaded) return;
 
     const safeRemoveLayer = (id: string): void => {
@@ -43,13 +50,16 @@ const useChartOverlay = (
 
     // Process all charts for selected airport
     Object.entries(airportCharts).forEach(([chartId, chartData]) => {
-      const layerId = `chart-${chartId}`;
-      const sourceId = `chart-source-${chartId}`;
+      const safeAirport = selectedAirport.replace(/[^A-Za-z0-9_-]/g, '_');
+      const safeChartId = chartId.replace(/[^A-Za-z0-9_-]/g, '_');
+      const layerId = `chart-${safeAirport}-${safeChartId}`;
+      const sourceId = `chart-source-${safeAirport}-${safeChartId}`;
       const isActive = activeCharts[chartId];
       const bounds = chartData?.bounds;
 
       if (isActive && bounds) {
         currentLayers.add(layerId);
+        console.log(`[ChartOverlay] Adding chart: ${chartId}, file: ${chartData.file}, bounds:`, bounds);
         try {
           // Remove existing layer/source first if they exist (for style changes)
           if (map.current?.getLayer(layerId)) map.current.removeLayer(layerId);
@@ -70,8 +80,9 @@ const useChartOverlay = (
             source: sourceId,
             paint: { 'raster-opacity': chartOpacities[chartId] || 0.7 }
           }, beforeLayer);
+          console.log(`[ChartOverlay] Successfully added chart layer: ${layerId}`);
         } catch (e) {
-          console.warn(`Failed to add chart overlay ${chartId}:`, e);
+          console.error(`[ChartOverlay] Failed to add chart overlay ${chartId}:`, e);
         }
       } else {
         safeRemoveLayer(layerId);

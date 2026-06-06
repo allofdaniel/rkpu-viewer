@@ -1,7 +1,48 @@
-// Vercel Serverless Function - UBIKAIS + FlightRadar24 비공식 API로 출발/도착 정보 가져오기
-// UBIKAIS (한국 공역 정보 시스템) 데이터를 우선 사용하고, 없으면 FR24로 폴백
+﻿// Vercel Serverless Function - UBIKAIS + FlightRadar24 鍮꾧났??API濡?異쒕컻/?꾩갑 ?뺣낫 媛?몄삤湲?// UBIKAIS (?쒓뎅 怨듭뿭 ?뺣낫 ?쒖뒪?? ?곗씠?곕? ?곗꽑 ?ъ슜?섍퀬, ?놁쑝硫?FR24濡??대갚
 import { setCorsHeaders, checkRateLimit } from './_utils/cors.js';
 
+const CALLSIGN_PATTERN = /^[A-Z0-9-]{2,16}$/i;
+const REG_PATTERN = /^[A-Z0-9]{3,12}$/i;
+const HEX_PATTERN = /^[0-9A-F]{6}$/i;
+
+function normalizeCallsign(value) {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim().replace(/\s+/g, '').toUpperCase();
+  if (!CALLSIGN_PATTERN.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function normalizeReg(value) {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim().replace(/[-\s]/g, '').toUpperCase();
+  if (!REG_PATTERN.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function normalizeHex(value) {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim().toUpperCase();
+  if (!HEX_PATTERN.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
+}
 export default async function handler(req, res) {
   // DO-278A SRS-SEC-002: Use secure CORS headers
   if (setCorsHeaders(req, res)) return;
@@ -10,15 +51,22 @@ export default async function handler(req, res) {
 
   const { callsign, reg, hex } = req.query;
 
-  if (!callsign && !reg && !hex) {
+  const normalizedCallsign = normalizeCallsign(callsign);
+  const normalizedReg = normalizeReg(reg);
+  const normalizedHex = normalizeHex(hex);
+
+  if (!normalizedCallsign && !normalizedReg && !normalizedHex) {
+    if (callsign || reg || hex) {
+      return res.status(400).json({ error: 'Invalid callsign/reg/hex format' });
+    }
     return res.status(400).json({ error: 'callsign, reg, or hex parameter required' });
   }
 
   try {
     let flightData = null;
 
-    // 1차: UBIKAIS 데이터에서 검색 (flight_schedule.json)
-    // Vercel 환경에서는 API로 호출, 로컬에서는 정적 파일 참조
+    // 1李? UBIKAIS ?곗씠?곗뿉??寃??(flight_schedule.json)
+    // Vercel ?섍꼍?먯꽌??API濡??몄텧, 濡쒖뺄?먯꽌???뺤쟻 ?뚯씪 李몄“
     try {
       const ubikaisUrl = process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}/flight_schedule.json`
@@ -29,21 +77,21 @@ export default async function handler(req, res) {
         const ubikaisData = await ubikaisRes.json();
         const departures = ubikaisData.departures || [];
 
-        // callsign으로 검색 (예: KAL319 -> 편명에서 숫자 부분 매칭)
+        // callsign?쇰줈 寃??(?? KAL319 -> ?몃챸?먯꽌 ?レ옄 遺遺?留ㅼ묶)
         let matchedFlight = null;
 
-        if (callsign) {
-          const normalizedCallsign = callsign.replace(/\s/g, '').toUpperCase();
+        if (normalizedCallsign) {
+          const normalizedCallsignForSearch = normalizedCallsign.replace(/\s/g, '').toUpperCase();
           matchedFlight = departures.find(f => {
             const flightNum = f.flight_number?.replace(/\s/g, '').toUpperCase();
-            return flightNum === normalizedCallsign ||
-                   flightNum === normalizedCallsign.replace(/^([A-Z]+)0*/, '$1'); // KAL0319 -> KAL319
+            return (
+              flightNum === normalizedCallsignForSearch ||
+              flightNum === normalizedCallsignForSearch.replace(/^([A-Z]+)0*/, '$1') // KAL0319 -> KAL319
+            );
           });
         }
 
-        // registration으로 검색
-        if (!matchedFlight && reg) {
-          const normalizedReg = reg.replace(/-/g, '').toUpperCase();
+        if (!matchedFlight && normalizedReg) {
           matchedFlight = departures.find(f => {
             const flightReg = f.registration?.replace(/-/g, '').toUpperCase();
             return flightReg === normalizedReg;
@@ -51,7 +99,7 @@ export default async function handler(req, res) {
         }
 
         if (matchedFlight) {
-          // ICAO 코드를 IATA로 변환 (주요 한국 공항)
+          // ICAO 肄붾뱶瑜?IATA濡?蹂??(二쇱슂 ?쒓뎅 怨듯빆)
           const icaoToIata = {
             'RKSI': 'ICN', 'RKSS': 'GMP', 'RKPK': 'PUS', 'RKPC': 'CJU',
             'RKPU': 'USN', 'RKTN': 'TAE', 'RKTU': 'CJJ', 'RKJB': 'MWX',
@@ -106,17 +154,16 @@ export default async function handler(req, res) {
       console.warn('UBIKAIS data search error:', e.message);
     }
 
-    // UBIKAIS에서 찾았으면 바로 반환
+    // UBIKAIS?먯꽌 李얠븯?쇰㈃ 諛붾줈 諛섑솚
     if (flightData) {
       return res.status(200).json(flightData);
     }
 
-    // 2차: FlightRadar24 API로 출발/도착 정보 가져오기
-    // callsign으로 검색 (예: KAL018)
-    if (callsign) {
+    // 2nd: FlightRadar24 API fallback (search by callsign)
+    if (normalizedCallsign) {
       try {
-        // FR24 실시간 데이터 피드에서 검색
-        const feedUrl = `https://data-cloud.flightradar24.com/zones/fcgi/feed.js?faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=0&air=1&vehicles=0&estimated=0&maxage=14400&gliders=0&stats=0&callsign=${callsign}`;
+        const callSignForSearch = normalizedCallsign;
+        const feedUrl = `https://data-cloud.flightradar24.com/zones/fcgi/feed.js?faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=0&air=1&vehicles=0&estimated=0&maxage=14400&gliders=0&stats=0&callsign=${encodeURIComponent(callSignForSearch)}`;
 
         const feedRes = await fetch(feedUrl, {
           headers: {
@@ -129,16 +176,16 @@ export default async function handler(req, res) {
 
         if (feedRes.ok) {
           const feedData = await feedRes.json();
-          // FR24 응답에서 항공기 데이터 추출
+          // FR24 ?묐떟?먯꽌 ??났湲??곗씠??異붿텧
           for (const key in feedData) {
             if (key !== 'full_count' && key !== 'version' && key !== 'stats') {
               const flight = feedData[key];
               if (Array.isArray(flight) && flight.length >= 14) {
-                // FR24 데이터 형식: [icao24, lat, lon, track, alt, speed, squawk, radar, type, reg, timestamp, origin, dest, flight, ...]
+                // FR24 ?곗씠???뺤떇: [icao24, lat, lon, track, alt, speed, squawk, radar, type, reg, timestamp, origin, dest, flight, ...]
                 const flightId = key;
                 const originIata = flight[11] || null;
                 const destIata = flight[12] || null;
-                const flightNumber = flight[13] || callsign;
+                const flightNumber = flight[13] || normalizedCallsign;
 
                 if (originIata || destIata) {
                   flightData = {
@@ -152,7 +199,6 @@ export default async function handler(req, res) {
                       type: flight[8] || null,
                       hex: flight[0] || null
                     },
-                    // 추가 실시간 데이터
                     realtime: {
                       altitude: flight[4] || null,
                       speed: flight[5] || null,
@@ -164,7 +210,7 @@ export default async function handler(req, res) {
                     }
                   };
 
-                  // FR24 상세 정보 API 호출 (출발/도착 시간 등)
+                  // FR24 detail API call
                   try {
                     const detailUrl = `https://data-live.flightradar24.com/clickhandler/?version=1.5&flight=${flightId}`;
                     const detailRes = await fetch(detailUrl, {
@@ -177,18 +223,16 @@ export default async function handler(req, res) {
                     });
                     if (detailRes.ok) {
                       const detail = await detailRes.json();
-                      // 상세 시간 정보 추가
                       if (detail.time) {
                         flightData.schedule = {
-                          std: detail.time.scheduled?.departure ? new Date(detail.time.scheduled.departure * 1000).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'}) : null,
-                          sta: detail.time.scheduled?.arrival ? new Date(detail.time.scheduled.arrival * 1000).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'}) : null,
-                          etd: detail.time.estimated?.departure ? new Date(detail.time.estimated.departure * 1000).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'}) : null,
-                          eta: detail.time.estimated?.arrival ? new Date(detail.time.estimated.arrival * 1000).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'}) : null,
-                          atd: detail.time.real?.departure ? new Date(detail.time.real.departure * 1000).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'}) : null,
-                          ata: detail.time.real?.arrival ? new Date(detail.time.real.arrival * 1000).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'}) : null
+                          std: detail.time.scheduled?.departure ? new Date(detail.time.scheduled.departure * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : null,
+                          sta: detail.time.scheduled?.arrival ? new Date(detail.time.scheduled.arrival * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : null,
+                          etd: detail.time.estimated?.departure ? new Date(detail.time.estimated.departure * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : null,
+                          eta: detail.time.estimated?.arrival ? new Date(detail.time.estimated.arrival * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : null,
+                          atd: detail.time.real?.departure ? new Date(detail.time.real.departure * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : null,
+                          ata: detail.time.real?.arrival ? new Date(detail.time.real.arrival * 1000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : null
                         };
                       }
-                      // 공항 상세 정보
                       if (detail.airport) {
                         if (detail.airport.origin) {
                           flightData.origin = {
@@ -211,7 +255,6 @@ export default async function handler(req, res) {
                           };
                         }
                       }
-                      // 항공기 상세 정보
                       if (detail.aircraft) {
                         flightData.aircraft = {
                           ...flightData.aircraft,
@@ -223,7 +266,6 @@ export default async function handler(req, res) {
                           images: detail.aircraft.images?.thumbnails || []
                         };
                       }
-                      // 항공사 정보
                       if (detail.airline) {
                         flightData.airline = {
                           name: detail.airline.name || null,
@@ -231,7 +273,6 @@ export default async function handler(req, res) {
                           icao: detail.airline.code?.icao || null
                         };
                       }
-                      // 비행 상태
                       if (detail.status) {
                         flightData.status = {
                           text: detail.status.text || null,
@@ -254,8 +295,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // hex로 검색
-    if (!flightData && hex) {
+    if (!flightData && normalizedHex) {
       try {
         const feedUrl = `https://data-cloud.flightradar24.com/zones/fcgi/feed.js?faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=0&air=1&vehicles=0&estimated=0&maxage=14400&gliders=0&stats=0`;
 
@@ -268,7 +308,7 @@ export default async function handler(req, res) {
 
         if (feedRes.ok) {
           const feedData = await feedRes.json();
-          const hexUpper = hex.toUpperCase();
+          const hexUpper = normalizedHex;
 
           for (const key in feedData) {
             if (key !== 'full_count' && key !== 'version' && key !== 'stats') {
@@ -301,13 +341,14 @@ export default async function handler(req, res) {
       }
     }
 
-    // 방법 2: ADS-B Exchange 백업 (FR24에서 못찾으면)
-    if (!flightData && hex) {
+    // ADS-B Exchange fallback
+    if (!flightData && normalizedHex) {
       try {
-        // adsbexchange.com API 시도
-        const adsbUrl = `https://globe.adsbexchange.com/data/traces/${hex.toLowerCase().substring(0, 2)}/trace_full_${hex.toLowerCase()}.json`;
+        // adsbexchange.com API ?쒕룄
+        const hexForExchange = normalizedHex.toLowerCase();
+        const adsbUrl = `https://globe.adsbexchange.com/data/traces/${hexForExchange.substring(0, 2)}/trace_full_${hexForExchange}.json`;
         const adsbRes = await fetch(adsbUrl, {
-          headers: { 'User-Agent': 'RKPU-Viewer/1.0' }
+          headers: { 'User-Agent': 'TBAS/2.1 (+https://tbas.vercel.app)' }
         });
 
         if (adsbRes.ok) {
@@ -321,7 +362,7 @@ export default async function handler(req, res) {
               aircraft: {
                 registration: adsbData.r || null,
                 type: adsbData.t || null,
-                hex: hex
+                hex: normalizedHex
               }
             };
           }
@@ -342,3 +383,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Failed to fetch flight route' });
   }
 }
+

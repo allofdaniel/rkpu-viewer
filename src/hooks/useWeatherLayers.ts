@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps */
+﻿/* eslint-disable react-hooks/exhaustive-deps */
 // Mapbox GL dependencies are intentionally excluded from useEffect deps
 
 import { useEffect, useState, type MutableRefObject } from 'react';
@@ -422,7 +422,7 @@ export default function useWeatherLayers(
 
     const fetchRadarData = async (): Promise<void> => {
       try {
-        const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+        const response = await fetch('/api/weather?type=radar');
         const data: RadarApiData = await response.json();
         if (data?.radar?.past?.length && data.radar.past.length > 0) {
           const latestFrame = data.radar.past[data.radar.past.length - 1];

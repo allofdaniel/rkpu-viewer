@@ -1,117 +1,161 @@
-// Vercel Serverless Function - 항공기 사진 프록시
+﻿// Vercel Serverless Function - 항공기 사진 프록시
 import { setCorsHeaders, checkRateLimit } from './_utils/cors.js';
 
+const REG_PATTERN = /^[A-Z0-9-]{2,12}$/i;
+const HEX_PATTERN = /^[0-9A-F]{6}$/i;
+const USER_AGENT = 'TBAS/2.1 (+https://tbas.vercel.app)';
+
+function cleanString(value) {
+  return typeof value === 'string' ? value.trim().toUpperCase() : '';
+}
+
+function normalizeRegistration(value) {
+  const raw = cleanString(value).replace(/\s/g, '');
+  if (!raw || !REG_PATTERN.test(raw)) return null;
+  return raw;
+}
+
+function registrationVariants(value) {
+  const normalized = normalizeRegistration(value);
+  if (!normalized) return [];
+  const compact = normalized.replace(/-/g, '');
+  return [...new Set([normalized, compact].filter(Boolean))];
+}
+
+function normalizeHex(value) {
+  const normalized = cleanString(value);
+  if (!HEX_PATTERN.test(normalized)) return null;
+  return normalized;
+}
+
+function pickPlanespottersImage(photo) {
+  if (!photo || typeof photo !== 'object') return null;
+  return photo.large?.src ||
+    photo.medium?.src ||
+    photo.thumbnail_large?.src ||
+    photo.thumbnail?.src ||
+    photo.thumbnail_large ||
+    photo.thumbnail ||
+    null;
+}
+
+function pickAirportDataImage(item) {
+  if (!item || typeof item !== 'object') return null;
+  return item.image || item.thumbnail || item.link || null;
+}
+
+function normalizeImageUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  if (url.startsWith('//')) return `https:${url}`;
+  if (url.startsWith('http://')) return url.replace(/^http:\/\//, 'https://');
+  if (url.startsWith('https://')) return url;
+  return null;
+}
+
+async function fetchJson(url, timeoutMs = 4500) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: 'application/json,text/plain,*/*'
+      }
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    if (error?.name !== 'AbortError') {
+      console.warn('[aircraft-photo] source failed:', url, error.message);
+    }
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function photoResponse(source, image, extra = {}) {
+  const normalizedImage = normalizeImageUrl(image);
+  if (!normalizedImage) return null;
+  return {
+    source,
+    image: normalizedImage,
+    ...extra
+  };
+}
+
+async function fetchPlanespottersByReg(reg) {
+  const data = await fetchJson(`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(reg)}`);
+  const photo = Array.isArray(data?.photos) ? data.photos[0] : null;
+  return photoResponse('planespotters', pickPlanespottersImage(photo), {
+    photographer: photo?.photographer,
+    link: photo?.link
+  });
+}
+
+async function fetchPlanespottersByHex(hex) {
+  const data = await fetchJson(`https://api.planespotters.net/pub/photos/hex/${encodeURIComponent(hex)}`);
+  const photo = Array.isArray(data?.photos) ? data.photos[0] : null;
+  return photoResponse('planespotters', pickPlanespottersImage(photo), {
+    photographer: photo?.photographer,
+    link: photo?.link
+  });
+}
+
+async function fetchAirportDataByReg(reg) {
+  const data = await fetchJson(`https://www.airport-data.com/api/ac_thumb.json?r=${encodeURIComponent(reg)}&n=1`, 5500);
+  const item = Array.isArray(data?.data) ? data.data[0] : null;
+  return photoResponse('airport-data', pickAirportDataImage(item), {
+    photographer: item?.photographer,
+    link: item?.link
+  });
+}
+
+async function fetchAirportDataByHex(hex) {
+  const data = await fetchJson(`https://www.airport-data.com/api/ac_thumb.json?m=${encodeURIComponent(hex)}&n=1`, 5500);
+  const item = Array.isArray(data?.data) ? data.data[0] : null;
+  return photoResponse('airport-data', pickAirportDataImage(item), {
+    photographer: item?.photographer,
+    link: item?.link
+  });
+}
+
 export default async function handler(req, res) {
-  // DO-278A SRS-SEC-002: Use secure CORS headers
   if (setCorsHeaders(req, res)) return;
-  // DO-278A SRS-SEC-003: Rate Limiting
   if (await checkRateLimit(req, res)) return;
 
   const { hex, reg } = req.query;
+  const normalizedHex = normalizeHex(hex);
+  const regCandidates = registrationVariants(reg);
 
-  if (!hex && !reg) {
+  if (reg && regCandidates.length === 0) {
+    return res.status(400).json({ error: 'Invalid reg format' });
+  }
+  if (hex && !normalizedHex) {
+    return res.status(400).json({ error: 'Invalid hex format' });
+  }
+  if (regCandidates.length === 0 && !normalizedHex) {
     return res.status(400).json({ error: 'hex or reg parameter required' });
   }
 
   try {
-    // 1차: Planespotters.net API (registration으로 검색 - 가장 정확함)
-    if (reg) {
-      try {
-        const psRes = await fetch(`https://api.planespotters.net/pub/photos/reg/${reg.toUpperCase()}`, {
-          headers: { 'User-Agent': 'RKPU-Viewer/1.0' }
-        });
-        if (psRes.ok) {
-          const psData = await psRes.json();
-          if (psData.photos && psData.photos.length > 0) {
-            const photo = psData.photos[0];
-            // 우선순위: large > medium > thumbnail_large > thumbnail
-            const imageUrl = photo.large?.src || photo.medium?.src || photo.thumbnail_large?.src || photo.thumbnail?.src;
-            return res.status(200).json({
-              source: 'planespotters',
-              image: imageUrl,
-              photographer: photo.photographer,
-              link: photo.link
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('Planespotters reg API error:', e);
+    const attempts = [];
+    regCandidates.forEach((candidate) => attempts.push(() => fetchPlanespottersByReg(candidate)));
+    if (normalizedHex) attempts.push(() => fetchPlanespottersByHex(normalizedHex));
+    regCandidates.forEach((candidate) => attempts.push(() => fetchAirportDataByReg(candidate)));
+    if (normalizedHex) attempts.push(() => fetchAirportDataByHex(normalizedHex));
+
+    for (const attempt of attempts) {
+      const result = await attempt();
+      if (result?.image) {
+        return res.status(200).json(result);
       }
     }
 
-    // 2차: Planespotters.net API (hex로 검색)
-    if (hex) {
-      try {
-        const psRes = await fetch(`https://api.planespotters.net/pub/photos/hex/${hex.toUpperCase()}`, {
-          headers: { 'User-Agent': 'RKPU-Viewer/1.0' }
-        });
-        if (psRes.ok) {
-          const psData = await psRes.json();
-          if (psData.photos && psData.photos.length > 0) {
-            const photo = psData.photos[0];
-            // 우선순위: large > medium > thumbnail_large > thumbnail
-            const imageUrl = photo.large?.src || photo.medium?.src || photo.thumbnail_large?.src || photo.thumbnail?.src;
-            return res.status(200).json({
-              source: 'planespotters',
-              image: imageUrl,
-              photographer: photo.photographer,
-              link: photo.link
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('Planespotters hex API error:', e);
-      }
-    }
-
-    // 3차: JetPhotos.com API (registration으로 검색)
-    if (reg) {
-      try {
-        // JetPhotos는 scraping이 필요하므로 airport-data로 대체
-        const adRes = await fetch(`https://www.airport-data.com/api/ac_thumb.json?r=${reg.replace(/-/g, '')}&n=1`, {
-          headers: { 'User-Agent': 'RKPU-Viewer/1.0' }
-        });
-        if (adRes.ok) {
-          const adData = await adRes.json();
-          if (adData.data && adData.data.length > 0 && adData.data[0].image) {
-            return res.status(200).json({
-              source: 'airport-data',
-              image: adData.data[0].image,
-              photographer: adData.data[0].photographer
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('airport-data reg API error:', e);
-      }
-    }
-
-    // 4차: airport-data.com (hex로 검색)
-    if (hex) {
-      try {
-        const adRes = await fetch(`https://www.airport-data.com/api/ac_thumb.json?m=${hex.toUpperCase()}&n=1`, {
-          headers: { 'User-Agent': 'RKPU-Viewer/1.0' }
-        });
-        if (adRes.ok) {
-          const adData = await adRes.json();
-          if (adData.data && adData.data.length > 0 && adData.data[0].image) {
-            return res.status(200).json({
-              source: 'airport-data',
-              image: adData.data[0].image,
-              photographer: adData.data[0].photographer
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('airport-data hex API error:', e);
-      }
-    }
-
-    // 사진 없음
     return res.status(200).json({ source: null, image: null });
-
   } catch (error) {
-    console.error('Photo API error:', error);
-    return res.status(500).json({ error: 'Failed to fetch aircraft photo' });
+    console.error('[aircraft-photo] unexpected error:', error);
+    return res.status(200).json({ source: null, image: null });
   }
 }

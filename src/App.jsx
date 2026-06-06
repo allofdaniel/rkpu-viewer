@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -47,7 +47,7 @@ import {
   ViewControlsBar,
   AircraftControlPanel,
   KoreaAirspacePanel,
-  GlobalDataPanel,
+  MapContextMenu,
 } from './components';
 
 // Import hooks
@@ -105,17 +105,14 @@ function App() {
     chartExpanded, setChartExpanded,
     koreaRoutesExpanded, setKoreaRoutesExpanded,
     showAtcPanel, setShowAtcPanel,
-    atcExpanded, setAtcExpanded, toggleAtcSection,
-    showWxPanel, setShowWxPanel,
-    wxPanelTab, setWxPanelTab,
-    wxLayersExpanded, setWxLayersExpanded,
+    atcExpanded, toggleAtcSection,
+    showWxPanel,
     showNotamPanel, setShowNotamPanel,
     showMetarPopup, setShowMetarPopup,
     showTafPopup, setShowTafPopup,
     metarPinned, setMetarPinned,
     tafPinned, setTafPinned,
     sectionExpanded, toggleSection,
-    globalExpanded, setGlobalExpanded,
   } = useUIStore();
 
   // Aircraft store
@@ -158,15 +155,15 @@ function App() {
     showKoreaStars, setShowKoreaStars,
     showKoreaIaps, setShowKoreaIaps,
     selectedKoreaAirport, setSelectedKoreaAirport,
-    showGlobalAirports, setShowGlobalAirports,
-    showGlobalNavaids, setShowGlobalNavaids,
-    showGlobalHeliports, setShowGlobalHeliports,
-    showGlobalWaypoints, setShowGlobalWaypoints,
-    showGlobalAirways, setShowGlobalAirways,
-    showGlobalHoldings, setShowGlobalHoldings,
-    showGlobalCtrlAirspace, setShowGlobalCtrlAirspace,
-    showGlobalRestrAirspace, setShowGlobalRestrAirspace,
-    showGlobalFirUir, setShowGlobalFirUir,
+    showGlobalAirports,
+    showGlobalNavaids,
+    showGlobalHeliports,
+    showGlobalWaypoints,
+    showGlobalAirways,
+    showGlobalHoldings,
+    showGlobalCtrlAirspace,
+    showGlobalRestrAirspace,
+    showGlobalFirUir,
   } = useLayerStore();
 
   // ============================================
@@ -190,7 +187,6 @@ function App() {
     starVisible, setStarVisible,
     apchVisible, setApchVisible,
     procColors,
-    chartBounds,
     allChartBounds,
     chartOpacities, setChartOpacities,
     atcData,
@@ -213,7 +209,7 @@ function App() {
   // ATC hooks
   useAtcRadarRings(map, mapLoaded, atcOnlyMode, radarRange, radarBlackBackground);
   useAtcSectors(map, mapLoaded, atcData, selectedAtcSectors);
-  useKoreaAirspace(map, mapLoaded, koreaAirspaceData, showKoreaRoutes, showKoreaWaypoints, showKoreaNavaids, showKoreaAirspaces, showKoreaAirports, is3DView, show3DAltitude, showKoreaHoldings, showKoreaTerminalWaypoints);
+  useKoreaAirspace(map, mapLoaded, koreaAirspaceData, showKoreaRoutes, showKoreaWaypoints, showKoreaNavaids, showKoreaAirspaces, showKoreaAirports, is3DView, show3DAltitude, showKoreaHoldings, showKoreaTerminalWaypoints, showKoreaSids, showKoreaStars, showKoreaIaps, selectedKoreaAirport, !isDarkMode);
 
   // Aircraft data hook
   const { aircraft, aircraftTrails, dataHealth } = useAircraftData(data, mapLoaded, showAircraft, trailDuration);
@@ -226,7 +222,6 @@ function App() {
     flightTrack, flightTrackLoading,
     showAircraftPanel, setShowAircraftPanel,
   } = useSelectedAircraft(selectedAircraft);
-
   // Procedure rendering hook
   const { hasActiveProcedure } = useProcedureRendering(
     map, mapLoaded, data, sidVisible, starVisible, apchVisible, procColors, is3DView, show3DAltitude
@@ -248,10 +243,9 @@ function App() {
 
   // NOTAM data hook
   const {
-    notamData, notamLoading, notamError, notamCacheAge,
+    notamData, notamLoading, notamError,
     notamPeriod, setNotamPeriod,
     notamFilter, setNotamFilter,
-    notamLocationFilter, setNotamLocationFilter,
     notamExpanded: notamItemExpanded, setNotamExpanded: setNotamItemExpanded,
     notamLocationsOnMap, setNotamLocationsOnMap,
     fetchNotamData,
@@ -264,18 +258,19 @@ function App() {
   // NOTAM layer hook
   useNotamLayer(map, mapLoaded, notamLocationsOnMap, notamData, is3DView);
 
-  // Airspace layers hook
-  useAirspaceLayers(map, mapLoaded, data, showWaypoints, showObstacles, showAirspace, show3DAltitude, is3DView, hasActiveProcedure);
+  // Airspace layers hook - pass isDarkMode for Navigraph Charts waypoint styling
+  useAirspaceLayers(map, mapLoaded, data, showWaypoints, showObstacles, showAirspace, show3DAltitude, is3DView, hasActiveProcedure, !isDarkMode);
 
   // Global data hooks
-  const { data: globalData, counts: globalCounts, loading: globalLoading } = useGlobalData(
+  const { data: globalData } = useGlobalData(
     showGlobalAirports, showGlobalNavaids, showGlobalHeliports, showGlobalWaypoints,
     showGlobalAirways, showGlobalHoldings, showGlobalCtrlAirspace, showGlobalRestrAirspace, showGlobalFirUir
   );
   useGlobalLayers(
     map, mapLoaded, globalData,
     showGlobalAirports, showGlobalNavaids, showGlobalHeliports, showGlobalWaypoints,
-    showGlobalAirways, showGlobalHoldings, showGlobalCtrlAirspace, showGlobalRestrAirspace, showGlobalFirUir
+    showGlobalAirways, showGlobalHoldings, showGlobalCtrlAirspace, showGlobalRestrAirspace, showGlobalFirUir,
+    !isDarkMode // pass isDayMode for Navigraph Charts waypoint styling
   );
 
   // ============================================
@@ -296,7 +291,7 @@ function App() {
     } else {
       map.current.setTerrain(null);
     }
-  }, [showTerrain, is3DView, show3DAltitude, mapLoaded]);
+  }, [map, mapLoaded, showTerrain, is3DView, show3DAltitude]);
 
   // Handle 3D buildings visibility
   useEffect(() => {
@@ -305,8 +300,10 @@ function App() {
       if (map.current.getLayer('3d-buildings')) {
         map.current.setLayoutProperty('3d-buildings', 'visibility', showBuildings && is3DView ? 'visible' : 'none');
       }
-    } catch (e) {}
-  }, [showBuildings, is3DView, mapLoaded]);
+    } catch (error) {
+      console.warn('Failed to update 3D buildings visibility:', error);
+    }
+  }, [map, mapLoaded, showBuildings, is3DView]);
 
   // ============================================
   // Handlers
@@ -424,11 +421,8 @@ function App() {
         notamData={notamData}
         notamLoading={notamLoading}
         notamError={notamError}
-        notamCacheAge={notamCacheAge}
         notamPeriod={notamPeriod}
         setNotamPeriod={setNotamPeriod}
-        notamLocationFilter={notamLocationFilter}
-        setNotamLocationFilter={setNotamLocationFilter}
         notamFilter={notamFilter}
         setNotamFilter={setNotamFilter}
         notamExpanded={notamItemExpanded}
@@ -540,7 +534,11 @@ function App() {
                               checked={selectedAtcSectors.has(s.id)}
                               onChange={e => {
                                 const newSet = new Set(selectedAtcSectors);
-                                e.target.checked ? newSet.add(s.id) : newSet.delete(s.id);
+                                if (e.target.checked) {
+                                  newSet.add(s.id);
+                                } else {
+                                  newSet.delete(s.id);
+                                }
                                 setSelectedAtcSectors(newSet);
                               }}
                               style={{ display: 'none' }}
@@ -712,6 +710,64 @@ function App() {
         findNearestWaypoints={findNearestWaypoints}
         detectCurrentProcedure={detectCurrentProcedure}
         AIRPORT_DATABASE={AIRPORT_DATABASE}
+      />
+
+      {/* Map Context Menu */}
+      <MapContextMenu
+        onCenterMap={(lat, lon) => {
+          map.current?.flyTo({
+            center: [lon, lat],
+            zoom: 14,
+            pitch: is3DView ? 60 : 0,
+            bearing: is3DView ? -30 : 0,
+            duration: 1500
+          });
+        }}
+        onAddMarker={(lat, lon) => {
+          if (map.current) {
+            // 핀 마커 생성
+            const el = document.createElement('div');
+            el.className = 'context-menu-marker';
+            el.innerHTML = `
+              <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
+                <path d="M16 0C7.16 0 0 7.16 0 16C0 28 16 40 16 40S32 28 32 16C32 7.16 24.84 0 16 0Z" fill="#E53935"/>
+                <path d="M16 0C7.16 0 0 7.16 0 16C0 28 16 40 16 40S32 28 32 16C32 7.16 24.84 0 16 0Z" fill="url(#paint0_linear)" fill-opacity="0.3"/>
+                <circle cx="16" cy="14" r="6" fill="white"/>
+                <defs>
+                  <linearGradient id="paint0_linear" x1="16" y1="0" x2="16" y2="40" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="white" stop-opacity="0.4"/>
+                    <stop offset="1" stop-color="black" stop-opacity="0.2"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            `;
+            el.style.cssText = `
+              cursor: pointer;
+              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+              transition: filter 0.15s ease;
+            `;
+            el.title = `${lat.toFixed(6)}, ${lon.toFixed(6)}\n클릭하여 삭제`;
+
+            const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+              .setLngLat([lon, lat])
+              .addTo(map.current);
+
+            // 마커 클릭 시 삭제 (이벤트 캡처링 사용)
+            el.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              marker.remove();
+            }, true);
+
+            // 마커 호버 효과 (밝기 + 그림자 강조)
+            el.addEventListener('mouseenter', () => {
+              el.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.6)) brightness(1.2)';
+            });
+            el.addEventListener('mouseleave', () => {
+              el.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))';
+            });
+          }
+        }}
       />
 
     </div>

@@ -1,8 +1,9 @@
-/**
+﻿/**
  * AircraftDetailPanel Component
  * 항공기 상세 정보 패널 (FR24 스타일)
  */
 import React from 'react';
+import AircraftPhotoSection from './AircraftDetail/AircraftPhotoSection';
 
 // Types
 interface AircraftData {
@@ -25,6 +26,8 @@ interface AircraftData {
 interface AircraftPhoto {
   image?: string;
   photographer?: string;
+  link?: string;
+  source?: string;
 }
 
 interface AircraftDetails {
@@ -38,6 +41,9 @@ interface AircraftDetails {
 
 interface AircraftImage {
   src?: string;
+  link?: string;
+  copyright?: string;
+  source?: string;
 }
 
 // aircraft_images can be string[] (FR24) or AircraftImage[] (legacy)
@@ -168,15 +174,6 @@ interface AtcData {
   CTR?: AtcSector[];
 }
 
-// Photo Section Props
-interface AircraftPhotoSectionProps {
-  displayAircraft: AircraftData;
-  aircraftPhoto: AircraftPhoto | null;
-  aircraftPhotoLoading: boolean;
-  flightSchedule: FlightSchedule | null;
-  getAircraftImage: (type: string) => string;
-}
-
 // Route Section Props
 interface RouteSectionProps {
   displayAircraft: AircraftData;
@@ -275,60 +272,6 @@ interface AircraftDetailPanelProps {
   detectCurrentProcedure: (aircraft: AircraftData, procedures: unknown, phase: string) => ProcedureInfo | null;
   AIRPORT_DATABASE: AirportDatabase;
 }
-
-/**
- * Aircraft Photo Section
- */
-const AircraftPhotoSection: React.FC<AircraftPhotoSectionProps> = ({
-  displayAircraft,
-  aircraftPhoto,
-  aircraftPhotoLoading,
-  flightSchedule,
-  getAircraftImage
-}) => (
-  <div className="aircraft-photo-section">
-    {aircraftPhotoLoading && (
-      <div className="aircraft-photo-loading">
-        <div className="loading-spinner"></div>
-      </div>
-    )}
-    {!aircraftPhotoLoading && (aircraftPhoto?.image || (flightSchedule?.aircraft_images && flightSchedule.aircraft_images.length > 0)) && (
-      <img
-        src={aircraftPhoto?.image || (typeof flightSchedule?.aircraft_images?.[0] === 'string' ? flightSchedule.aircraft_images[0] : flightSchedule?.aircraft_images?.[0]?.src)}
-        alt={displayAircraft.registration || displayAircraft.callsign}
-        className="aircraft-photo"
-        onError={(e) => {
-          const target = e.target as HTMLImageElement;
-          target.src = getAircraftImage(displayAircraft.icao_type || displayAircraft.type || '');
-          target.onerror = null;
-        }}
-      />
-    )}
-    {!aircraftPhotoLoading && !aircraftPhoto?.image && (!flightSchedule?.aircraft_images || flightSchedule.aircraft_images.length === 0) && (
-      <img
-        src={getAircraftImage(displayAircraft.icao_type || displayAircraft.type || '')}
-        alt={displayAircraft.type || 'Aircraft'}
-        className="aircraft-photo aircraft-photo-default"
-        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-      />
-    )}
-    {aircraftPhoto?.image && aircraftPhoto?.photographer && (
-      <div className="aircraft-photo-credit">
-        📷 {aircraftPhoto.photographer}
-      </div>
-    )}
-    {!aircraftPhoto?.image && flightSchedule?.aircraft_images && flightSchedule.aircraft_images.length > 0 && (
-      <div className="aircraft-photo-credit">
-        📷 FlightRadar24
-      </div>
-    )}
-    {!aircraftPhoto?.image && (!flightSchedule?.aircraft_images || flightSchedule.aircraft_images.length === 0) && (displayAircraft.icao_type || displayAircraft.type) && (
-      <div className="aircraft-photo-credit type-info">
-        {displayAircraft.icao_type || displayAircraft.type}
-      </div>
-    )}
-  </div>
-);
 
 /**
  * Route Display Section
@@ -1094,7 +1037,8 @@ const AircraftDetailPanel: React.FC<AircraftDetailPanelProps> = React.memo(({
   AIRPORT_DATABASE
 }) => {
   const displayAircraft = selectedAircraft ? aircraft.find(a => a.hex === selectedAircraft.hex) || selectedAircraft : null;
-  const isLoading = aircraftPhotoLoading || !aircraftDetails;
+  // 사진 또는 상세정보 로딩 중일 때만 로딩 표시 (데이터 없음으로 무한 로딩 방지)
+  const isLoading = aircraftPhotoLoading || aircraftDetailsLoading;
 
   return (
     <div className={`aircraft-panel ${showAircraftPanel && displayAircraft ? 'open' : ''}`}>

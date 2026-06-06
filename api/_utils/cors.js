@@ -1,35 +1,35 @@
 /**
- * CORS 및 Rate Limiting 설정 유틸리티
- * DO-278A 요구사항 추적: SRS-SEC-002, SRS-SEC-003
+ * CORS �?Rate Limiting ?�정 ?�틸리티
+ * DO-278A ?�구?�항 추적: SRS-SEC-002, SRS-SEC-003
  *
- * 환경변수 기반 CORS 화이트리스트 및 Rate Limiting 관리
- * Upstash Redis 지원 (분산 rate limiting)
+ * ?�경변??기반 CORS ?�이?�리?�트 �?Rate Limiting 관�?
+ * Upstash Redis 지??(분산 rate limiting)
  */
 
-// Rate Limiting 설정
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1분
-const RATE_LIMIT_MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX || '100', 10); // 분당 최대 요청 수
+// Rate Limiting ?�정
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1�?
+const RATE_LIMIT_MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX || '100', 10); // 분당 최�? ?�청 ??
 
 // In-memory rate limit store (fallback when Redis not available)
 const rateLimitStore = new Map();
 
-// Upstash Redis 인스턴스 (지연 로딩)
+// Upstash Redis ?�스?�스 (지??로딩)
 let redisInstance = null;
 let redisInitialized = false;
 
 /**
- * Upstash Redis 초기화 (환경변수가 있을 때만)
- * DO-278A 요구사항 추적: SRS-SEC-003 (분산 Rate Limiting)
+ * Upstash Redis 초기??(?�경변?��? ?�을 ?�만)
+ * DO-278A ?�구?�항 추적: SRS-SEC-003 (분산 Rate Limiting)
  *
- * 지원되는 환경변수:
+ * 지?�되???�경변??
  * - UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
- * - KV_REST_API_URL + KV_REST_API_TOKEN (Vercel KV 호환)
+ * - KV_REST_API_URL + KV_REST_API_TOKEN (Vercel KV ?�환)
  */
 async function getRedisInstance() {
   if (redisInitialized) return redisInstance;
   redisInitialized = true;
 
-  // Upstash Redis 환경변수 확인 (Vercel KV 변수도 지원)
+  // Upstash Redis ?�경변???�인 (Vercel KV 변?�도 지??
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
@@ -40,7 +40,7 @@ async function getRedisInstance() {
         url: redisUrl,
         token: redisToken,
       });
-      console.log('[Rate Limit] Using Upstash Redis for distributed rate limiting');
+      console.info('[Rate Limit] Using Upstash Redis for distributed rate limiting');
     } catch (e) {
       console.warn('[Rate Limit] Upstash Redis not available, using in-memory fallback:', e.message);
     }
@@ -49,7 +49,7 @@ async function getRedisInstance() {
 }
 
 /**
- * Rate Limit 정리 (오래된 항목 제거) - in-memory용
+ * Rate Limit ?�리 (?�래????�� ?�거) - in-memory??
  */
 function cleanupRateLimitStore() {
   const now = Date.now();
@@ -61,13 +61,13 @@ function cleanupRateLimitStore() {
 }
 
 /**
- * Rate Limiting 검사 (Upstash Redis 지원)
- * @param {object} req - 요청 객체
- * @param {object} res - 응답 객체
- * @returns {Promise<boolean>} - 요청이 차단되면 true
+ * Rate Limiting 검??(Upstash Redis 지??
+ * @param {object} req - ?�청 객체
+ * @param {object} res - ?�답 객체
+ * @returns {Promise<boolean>} - ?�청??차단?�면 true
  */
 export async function checkRateLimit(req, res) {
-  // 클라이언트 식별자 (IP 또는 X-Forwarded-For)
+  // ?�라?�언???�별??(IP ?�는 X-Forwarded-For)
   const clientId = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
                    req.headers['x-real-ip'] ||
                    req.socket?.remoteAddress ||
@@ -80,7 +80,7 @@ export async function checkRateLimit(req, res) {
   let windowStart = now;
 
   if (redis) {
-    // Upstash Redis 사용 (분산)
+    // Upstash Redis ?�용 (분산)
     const key = `ratelimit:${clientId}`;
     try {
       const data = await redis.get(key);
@@ -91,10 +91,10 @@ export async function checkRateLimit(req, res) {
         count = 1;
         windowStart = now;
       }
-      await redis.set(key, { count, windowStart }, { ex: 120 }); // 2분 TTL
+      await redis.set(key, { count, windowStart }, { ex: 120 }); // 2�?TTL
     } catch (e) {
       console.error('[Rate Limit] Redis error, falling back to in-memory:', e.message);
-      // Redis 오류 시 in-memory fallback
+      // Redis ?�류 ??in-memory fallback
       return checkRateLimitInMemory(clientId, now, res);
     }
   } else {
@@ -102,7 +102,7 @@ export async function checkRateLimit(req, res) {
     return checkRateLimitInMemory(clientId, now, res);
   }
 
-  // Rate limit 헤더 설정
+  // Rate limit ?�더 ?�정
   const remaining = Math.max(0, RATE_LIMIT_MAX_REQUESTS - count);
   const resetTime = Math.ceil((windowStart + RATE_LIMIT_WINDOW_MS - now) / 1000);
 
@@ -110,7 +110,7 @@ export async function checkRateLimit(req, res) {
   res.setHeader('X-RateLimit-Remaining', remaining);
   res.setHeader('X-RateLimit-Reset', resetTime);
 
-  // 제한 초과 시 차단
+  // ?�한 초과 ??차단
   if (count > RATE_LIMIT_MAX_REQUESTS) {
     res.setHeader('Retry-After', resetTime);
     res.status(429).json({
@@ -129,7 +129,7 @@ export async function checkRateLimit(req, res) {
  * In-memory Rate Limiting (fallback)
  */
 function checkRateLimitInMemory(clientId, now, res) {
-  // 정기적 정리 (10% 확률로)
+  // ?�기???�리 (10% ?�률�?
   if (Math.random() < 0.1) {
     cleanupRateLimitStore();
   }
@@ -165,19 +165,19 @@ function checkRateLimitInMemory(clientId, now, res) {
 }
 
 /**
- * 허용된 오리진 목록
- * CORS_ALLOWED_ORIGINS 환경변수에서 로드
+ * ?�용???�리�?목록
+ * CORS_ALLOWED_ORIGINS ?�경변?�에??로드
  */
 const getAllowedOrigins = () => {
   const envOrigins = process.env.CORS_ALLOWED_ORIGINS;
 
-  // 기본 허용 목록
+  // 기본 ?�용 목록
   const defaultOrigins = [
     'https://rkpu-viewer.vercel.app',
     'https://tbas.vercel.app',
   ];
 
-  // 개발 환경에서는 localhost 허용
+  // 개발 ?�경?�서??localhost ?�용
   if (process.env.NODE_ENV !== 'production') {
     defaultOrigins.push(
       'http://localhost:5173',
@@ -187,58 +187,65 @@ const getAllowedOrigins = () => {
   }
 
   if (envOrigins) {
-    return [...new Set([...defaultOrigins, ...envOrigins.split(',')])];
+    return [...new Set([...defaultOrigins, ...envOrigins.split(",").map((v) => v.trim()).filter(Boolean)])];
   }
 
   return defaultOrigins;
 };
 
 /**
- * 오리진 검증
- * @param {string} origin - 요청 오리진
- * @returns {boolean} - 허용 여부
+ * ?�리�?검�?
+ * @param {string} origin - ?�청 ?�리�?
+ * @returns {boolean} - ?�용 ?��?
  */
 export function isOriginAllowed(origin) {
   if (!origin) return false;
 
   const allowed = getAllowedOrigins();
-
-  // Vercel 프리뷰 배포 URL 패턴 지원 (예: rkpu-viewer-xxx-user.vercel.app)
-  // DO-278A SRS-SEC-002: 와일드카드 대신 특정 패턴만 허용
-  if (origin.endsWith('.vercel.app')) {
-    const hostname = origin.replace('https://', '');
-    if (hostname.includes('rkpu-viewer') || hostname.includes('tbas')) {
-      return true;
-    }
+  let parsedOrigin;
+  try {
+    parsedOrigin = new URL(origin);
+  } catch {
+    return false;
   }
 
-  // 정확한 매칭 확인
-  return allowed.some(allowedOrigin => {
-    return origin === allowedOrigin;
+  const normalizedOrigin = `${parsedOrigin.protocol}//${parsedOrigin.host}`;
+  const hostname = parsedOrigin.hostname.toLowerCase();
+
+  if (allowed.includes(normalizedOrigin)) {
+    return true;
+  }
+
+  if (/^([a-z0-9-]+\.)?(rkpu-viewer|tbas)\.vercel\.app$/i.test(hostname)) {
+    return true;
+  }
+
+  return allowed.some((allowedOrigin) => {
+    return normalizedOrigin === allowedOrigin;
   });
 }
 
 /**
- * CORS 헤더 설정
- * @param {object} req - 요청 객체
- * @param {object} res - 응답 객체
- * @returns {boolean} - preflight 요청인 경우 true
+ * CORS ?�더 ?�정
+ * @param {object} req - ?�청 객체
+ * @param {object} res - ?�답 객체
+ * @returns {boolean} - preflight ?�청??경우 true
  */
 export function setCorsHeaders(req, res) {
   const origin = req.headers.origin;
 
-  // 허용된 오리진인 경우에만 해당 오리진 반환
-  // DO-278A SRS-SEC-002: 와일드카드 금지, 명시적 화이트리스트만 허용
+  // ?�용???�리진인 경우?�만 ?�당 ?�리�?반환
+  // DO-278A SRS-SEC-002: ?�?�드카드 금�?, 명시???�이?�리?�트�??�용
   if (origin && isOriginAllowed(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
-  // 개발 환경에서도 localhost만 허용 (와일드카드 사용 안함)
+  // 개발 ?�경?�서??localhost�??�용 (?�?�드카드 ?�용 ?�함)
 
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  // Preflight 요청 처리
+  // Preflight ?�청 처리
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return true;

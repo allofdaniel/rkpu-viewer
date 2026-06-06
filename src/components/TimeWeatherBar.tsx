@@ -27,15 +27,15 @@ interface WeatherCompactProps {
   tafPinned: boolean;
   setTafPinned: (pinned: boolean) => void;
   setShowTafPopup: (show: boolean) => void;
-  parseMetar: (metar: MetarData) => ParsedMetar;
-  parseMetarTime: (metar: MetarData) => string;
+  parseMetar: (metar: MetarData | null | undefined) => ParsedMetar | null;
+  parseMetarTime: (metar: MetarData | null | undefined) => string;
 }
 
 interface MetarPopupProps {
   weatherData: WeatherDataState | null;
   showMetarPopup: boolean;
   metarPinned: boolean;
-  parseMetar: (metar: MetarData) => ParsedMetar;
+  parseMetar: (metar: MetarData | null | undefined) => ParsedMetar | null;
 }
 
 interface TafPopupProps {
@@ -58,8 +58,8 @@ interface TimeWeatherBarProps {
   setShowTafPopup: (show: boolean) => void;
   tafPinned: boolean;
   setTafPinned: (pinned: boolean) => void;
-  parseMetar: (metar: MetarData) => ParsedMetar;
-  parseMetarTime: (metar: MetarData) => string;
+  parseMetar: (metar: MetarData | null | undefined) => ParsedMetar | null;
+  parseMetarTime: (metar: MetarData | null | undefined) => string;
 }
 
 /**
@@ -221,6 +221,11 @@ const WeatherCompact: React.FC<WeatherCompactProps> = React.memo(({
         onMouseEnter={() => !metarPinned && setShowMetarPopup(true)}
         onMouseLeave={() => !metarPinned && setShowMetarPopup(false)}
         onClick={() => { setMetarPinned(!metarPinned); setShowMetarPopup(!metarPinned); }}
+        aria-label="METAR 기상 데이터 상세보기"
+        aria-pressed={metarPinned}
+        aria-expanded={metarPinned}
+        tabIndex={0}
+        type="button"
       >
         METAR
       </button>
@@ -230,6 +235,11 @@ const WeatherCompact: React.FC<WeatherCompactProps> = React.memo(({
           onMouseEnter={() => !tafPinned && setShowTafPopup(true)}
           onMouseLeave={() => !tafPinned && setShowTafPopup(false)}
           onClick={() => { setTafPinned(!tafPinned); setShowTafPopup(!tafPinned); }}
+          aria-label="TAF 예보 데이터 상세보기"
+          aria-pressed={tafPinned}
+          aria-expanded={tafPinned}
+          tabIndex={0}
+          type="button"
         >
           TAF
         </button>

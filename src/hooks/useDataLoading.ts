@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { generateColor } from '../utils/colors';
+﻿import { useState, useEffect } from 'react';
+import { generateColor, PROCEDURE_COLORS } from '../utils/colors';
 import { logger } from '../utils/logger';
 
 // ============================================
@@ -278,6 +278,68 @@ export interface KoreaAirspaceData {
   metadata?: KoreaAirspaceMetadata;
 }
 
+type ChartPoint = [number, number];
+type ChartBoundsTuple = [ChartPoint, ChartPoint, ChartPoint, ChartPoint];
+type MutableChart = {
+  file?: string;
+  bounds?: unknown;
+  type?: string;
+  name?: string;
+  method?: string;
+  [key: string]: unknown;
+};
+
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+const isChartBounds = (bounds: unknown): bounds is ChartBoundsTuple => (
+  Array.isArray(bounds) &&
+  bounds.length === 4 &&
+  bounds.every((point) => Array.isArray(point) && point.length === 2 && isFiniteNumber(point[0]) && isFiniteNumber(point[1]))
+);
+
+const chartCenter = (bounds: ChartBoundsTuple): { lon: number; lat: number } => {
+  const total = bounds.reduce((acc, [lon, lat]) => ({ lon: acc.lon + lon, lat: acc.lat + lat }), { lon: 0, lat: 0 });
+  return { lon: total.lon / bounds.length, lat: total.lat / bounds.length };
+};
+
+const shiftBounds = (bounds: ChartBoundsTuple, lonDelta: number, latDelta: number): ChartBoundsTuple => (
+  bounds.map(([lon, lat]) => [lon + lonDelta, lat + latDelta]) as ChartBoundsTuple
+);
+
+const normalizeChartBounds = (
+  rawAllBounds: Record<string, Record<string, unknown>>,
+  koreaData: KoreaAirspaceData | null
+): Record<string, Record<string, unknown>> => {
+  const airportCenters = new Map<string, { lat: number; lon: number }>();
+  koreaData?.airports?.forEach((airport) => {
+    if (isFiniteNumber(airport.lat) && isFiniteNumber(airport.lon)) {
+      airportCenters.set(airport.icao, { lat: airport.lat, lon: airport.lon });
+    }
+  });
+
+  const normalized: Record<string, Record<string, unknown>> = {};
+  Object.entries(rawAllBounds || {}).forEach(([airportIcao, charts]) => {
+    const center = airportCenters.get(airportIcao);
+    normalized[airportIcao] = {};
+
+    Object.entries(charts || {}).forEach(([chartId, chart]) => {
+      const mutable = { ...(chart as MutableChart) };
+      if (center && mutable.method !== 'manual' && isChartBounds(mutable.bounds)) {
+        const currentCenter = chartCenter(mutable.bounds);
+        const lonDelta = center.lon - currentCenter.lon;
+        const latDelta = center.lat - currentCenter.lat;
+        const drift = Math.hypot(lonDelta, latDelta);
+        if (drift > 0.05) {
+          mutable.bounds = shiftBounds(mutable.bounds, lonDelta, latDelta);
+          mutable.method = mutable.method ? `${mutable.method}+airport-center-normalized` : 'airport-center-normalized';
+        }
+      }
+      normalized[airportIcao][chartId] = mutable;
+    });
+  });
+
+  return normalized;
+};
 export interface UseDataLoadingReturn {
   data: AviationData | null;
   sidVisible: Record<string, boolean>;
@@ -321,14 +383,27 @@ export default function useDataLoading(): UseDataLoadingReturn {
         const sidKeys = Object.keys(json.procedures?.SID || {});
         const starKeys = Object.keys(json.procedures?.STAR || {});
         const apchKeys = Object.keys(json.procedures?.APPROACH || {});
+
+        console.log('[DataLoading] Loaded aviation data:', {
+          sidCount: sidKeys.length,
+          starCount: starKeys.length,
+          apchCount: apchKeys.length,
+          sidKeys: sidKeys.slice(0, 3),
+          firstSidSegments: json.procedures?.SID?.[sidKeys[0]]?.segments?.length
+        });
+
         setSidVisible(Object.fromEntries(sidKeys.map((k) => [k, false])));
         setStarVisible(Object.fromEntries(starKeys.map((k) => [k, false])));
         setApchVisible(Object.fromEntries(apchKeys.map((k) => [k, false])));
+        // Use Navigraph Charts colors for procedures
         setProcColors({
-          SID: Object.fromEntries(sidKeys.map((k, i) => [k, generateColor(i, sidKeys.length, 120)])),
-          STAR: Object.fromEntries(starKeys.map((k, i) => [k, generateColor(i, starKeys.length, 30)])),
-          APPROACH: Object.fromEntries(apchKeys.map((k, i) => [k, generateColor(i, apchKeys.length, 200)])),
+          SID: Object.fromEntries(sidKeys.map((k) => [k, PROCEDURE_COLORS.SID])),
+          STAR: Object.fromEntries(starKeys.map((k) => [k, PROCEDURE_COLORS.STAR])),
+          APPROACH: Object.fromEntries(apchKeys.map((k) => [k, PROCEDURE_COLORS.APPROACH])),
         });
+      })
+      .catch((err) => {
+        console.error('[DataLoading] Failed to load aviation data:', err);
       });
   }, []);
 
@@ -336,28 +411,31 @@ export default function useDataLoading(): UseDataLoadingReturn {
   useEffect(() => {
     Promise.all([
       fetch('/charts/all_chart_bounds.json').then(res => res.ok ? res.json() : {}),
-      fetch('/charts/chart_bounds.json').then(res => res.ok ? res.json() : {})
-    ]).then(([allBounds, rkpuManualBounds]: [Record<string, Record<string, unknown>>, Record<string, unknown>]) => {
-      // RKPU 수동 피팅 차트를 allBounds에 병합 (기존 RKPU 덮어쓰기)
+      fetch('/charts/chart_bounds.json').then(res => res.ok ? res.json() : {}),
+      fetch('/data/korea_airspace.json').then(res => res.ok ? res.json() : null)
+    ]).then(([rawAllBounds, rkpuManualBounds, koreaData]: [Record<string, Record<string, unknown>>, Record<string, unknown>, KoreaAirspaceData | null]) => {
+      const allBounds = normalizeChartBounds(rawAllBounds, koreaData);
       const rkpuCharts: Record<string, unknown> = {};
-      Object.entries(rkpuManualBounds).forEach(([chartId, bounds]) => {
-        // chart_bounds.json 형식: { chartId: { bounds: [[lon,lat],...] } }
-        // 파일 경로 추가
+
+      Object.entries(rkpuManualBounds).forEach(([chartId, chart]) => {
+        const manualChart = chart as MutableChart;
+        if (!isChartBounds(manualChart.bounds)) return;
+
         rkpuCharts[chartId] = {
-          bounds: (bounds as { bounds: unknown }).bounds,
-          file: `/charts/${chartId}.png`,
-          type: chartId.startsWith('sid') ? 'SID' :
+          ...manualChart,
+          bounds: manualChart.bounds,
+          file: typeof manualChart.file === 'string' ? manualChart.file : `/charts/${chartId}.png`,
+          type: manualChart.type || (chartId.startsWith('sid') ? 'SID' :
                 chartId.startsWith('star') ? 'STAR' :
-                chartId.startsWith('apch') ? 'IAC' : 'OTHER',
-          name: chartId.replace(/_/g, ' ').toUpperCase(),
-          method: 'manual'
+                chartId.startsWith('apch') ? 'IAC' : 'OTHER'),
+          name: manualChart.name || chartId.replace(/_/g, ' ').toUpperCase(),
+          method: manualChart.method || 'manual'
         };
       });
 
-      // RKPU 수동 차트로 덮어쓰기
       if (Object.keys(rkpuCharts).length > 0) {
-        allBounds['RKPU'] = rkpuCharts;
-        logger.debug('DataLoading', `Merged ${Object.keys(rkpuCharts).length} manual RKPU charts`);
+        allBounds.RKPU = { ...(allBounds.RKPU || {}), ...rkpuCharts };
+        logger.debug('DataLoading', `Merged ${Object.keys(rkpuCharts).length} manual RKPU charts without discarding folder charts`);
       }
 
       setAllChartBounds(allBounds);

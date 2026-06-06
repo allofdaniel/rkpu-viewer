@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { ftToM, isValidCoordinate } from '../utils/geometry';
 import {
   getAircraftApiUrl,
@@ -320,7 +320,7 @@ export default function useAircraftData(
 
       // 데이터 헬스 업데이트
       setDataHealth({
-        isConnected: true,
+        isConnected: processed.length > 0,
         lastSuccessTime: Date.now(),
         aircraftCount: processed.length,
         errorCount: 0

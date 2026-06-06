@@ -42,8 +42,11 @@ const useMapStyle = ({
       return;
     }
 
-    // 湲곕낯 ?ㅽ????좏깮 (dark/light留?- ?꾩꽦? ?섏뒪???ㅻ쾭?덉씠濡?泥섎━)
-    const newStyle = isDarkMode ? MAP_STYLES.dark as string : MAP_STYLES.light as string;
+    // Base map selection. Satellite mode must switch the actual Mapbox style,
+    // not only add a raster overlay, otherwise it can be hidden below base layers.
+    const newStyle = showSatellite
+      ? MAP_STYLES.satellite as string
+      : (isDarkMode ? MAP_STYLES.dark as string : MAP_STYLES.light as string);
 
     logger.debug('MapStyle', `Style check: showSatellite=${showSatellite}, isDarkMode=${isDarkMode}, newStyle=${newStyle}, prevStyle=${prevStyleRef.current}`);
 
@@ -201,84 +204,37 @@ const useMapStyle = ({
     }
   }, [map, radarBlackBackground, mapLoaded]);
 
-  // Handle satellite raster overlay toggle (V-World or Mapbox)
+  // Satellite is handled by the base Mapbox style above. Keep this effect only
+  // as a cleanup path for older deployments that may have left a raster overlay.
   useEffect(() => {
     if (!map?.current || !mapLoaded) {
       return;
     }
 
-    const vworldKey = import.meta.env.VITE_VWORLD_API_KEY;
     const sourceId = 'satellite-overlay';
     const layerId = 'satellite-overlay-layer';
 
-    // ?ㅽ???濡쒕뱶 ?湲????ㅽ뻾
-    const toggleSatelliteLayer = () => {
+    const cleanupLegacySatelliteOverlay = () => {
       if (!map.current) return;
 
       try {
-        if (showSatellite) {
-          // ?꾩꽦 ?섏뒪???뚯뒪 異붽?
-          if (!map.current.getSource(sourceId)) {
-            if (vworldKey) {
-              // V-World ?꾩꽦 (?쒓뎅 怨좏빐?곷룄)
-              logger.info('MapStyle', 'Adding V-World satellite source');
-              map.current.addSource(sourceId, {
-                type: 'raster',
-                tiles: [`https://api.vworld.kr/req/wmts/1.0.0/${vworldKey}/Satellite/{z}/{y}/{x}.jpeg`],
-                tileSize: 256,
-                minzoom: 5,
-                maxzoom: 19,
-                attribution: '&copy; V-World (援?넗援먰넻遺)'
-              });
-            } else {
-              // Mapbox ?꾩꽦 (湲濡쒕쾶)
-              logger.info('MapStyle', 'Adding Mapbox satellite source');
-              map.current.addSource(sourceId, {
-                type: 'raster',
-                url: 'mapbox://mapbox.satellite',
-                tileSize: 256
-              });
-            }
-          }
-          // ?섏뒪???덉씠??異붽? (background 諛붾줈 ?꾩뿉)
-          if (!map.current.getLayer(layerId)) {
-            // Mapbox 湲곕낯 ?덉씠??以?泥?踰덉㎏ 鍮?background ?덉씠??李얘린
-            const layers = map.current.getStyle()?.layers || [];
-            let firstNonBgLayer: string | undefined;
-            for (const layer of layers) {
-              if (layer.type !== 'background') {
-                firstNonBgLayer = layer.id;
-                break;
-              }
-            }
-            logger.info('MapStyle', `Adding satellite layer before ${firstNonBgLayer || 'end'}`);
-            map.current.addLayer({
-              id: layerId,
-              type: 'raster',
-              source: sourceId,
-              paint: { 'raster-opacity': 1 }
-            }, firstNonBgLayer);
-          }
-        } else {
-          // ?꾩꽦 ?덉씠???뚯뒪 ?쒓굅
-          if (map.current.getLayer(layerId)) {
-            logger.info('MapStyle', 'Removing satellite layer');
-            map.current.removeLayer(layerId);
-          }
-          if (map.current.getSource(sourceId)) {
-            map.current.removeSource(sourceId);
-          }
+        if (map.current.getLayer(layerId)) {
+          logger.info('MapStyle', 'Removing legacy satellite overlay layer');
+          map.current.removeLayer(layerId);
+        }
+        if (map.current.getSource(sourceId)) {
+          logger.info('MapStyle', 'Removing legacy satellite overlay source');
+          map.current.removeSource(sourceId);
         }
       } catch (err) {
-        logger.error('MapStyle', `Satellite overlay error: ${err}`);
+        logger.error('MapStyle', `Satellite overlay cleanup error: ${err}`);
       }
     };
 
-    // ?ㅽ??쇱씠 濡쒕뱶?섏뿀?쇰㈃ 諛붾줈 ?ㅽ뻾, ?꾨땲硫??湲?
     if (map.current.isStyleLoaded()) {
-      toggleSatelliteLayer();
+      cleanupLegacySatelliteOverlay();
     } else {
-      map.current.once('style.load', toggleSatelliteLayer);
+      map.current.once('style.load', cleanupLegacySatelliteOverlay);
     }
   }, [map, showSatellite, mapLoaded]);
 

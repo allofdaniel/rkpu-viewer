@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 
 /**
  * LayerStore - 레이어 표시 관련 상태 관리
@@ -110,7 +110,7 @@ const useLayerStore = create<LayerStore>((set) => ({
   showKoreaAirspaces: false,
   showKoreaAirports: false,
   showKoreaHoldings: false,
-  showKoreaTerminalWaypoints: false,
+  showKoreaTerminalWaypoints: true,
 
   // Korea procedures
   showKoreaSids: false,
@@ -184,7 +184,7 @@ const useLayerStore = create<LayerStore>((set) => ({
     showKoreaAirspaces: false,
     showKoreaAirports: false,
     showKoreaHoldings: false,
-    showKoreaTerminalWaypoints: false,
+    showKoreaTerminalWaypoints: true,
     showKoreaSids: false,
     showKoreaStars: false,
     showKoreaIaps: false,

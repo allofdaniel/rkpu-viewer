@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Configuration Constants
  * 앱 설정 및 API 관련 상수
  */
@@ -20,7 +20,7 @@ if (!mapboxToken) {
 export const MAPBOX_ACCESS_TOKEN: string = mapboxToken || '';
 
 // 항공기 업데이트 간격 (밀리초) - 429 오류 방지를 위해 15초로 설정
-export const AIRCRAFT_UPDATE_INTERVAL = 15000;
+export const AIRCRAFT_UPDATE_INTERVAL = 5000;
 
 // 항적 조회 중심 좌표 (한반도 중앙) - data.airport와 별도로 항적 API 전용
 // 한반도 + 인근 FIR (도쿄/상해/평양/블라디보스톡) 트래픽 커버용

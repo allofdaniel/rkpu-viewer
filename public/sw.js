@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Service Worker for TBAS PWA
  * DO-278A 요구사항 추적: SRS-PWA-001
  *
@@ -8,6 +8,7 @@
  * - API 데이터: Network First with Cache Fallback
  * - 항공 데이터: AIRAC 주기 기반 버전 관리
  */
+/* global self, caches, Response, location */
 
 // AIRAC 기준일 (28일 주기)
 const AIRAC_BASE_DATE = new Date('2024-01-25');
@@ -22,7 +23,7 @@ function getCurrentAiracCycle() {
 }
 
 const AIRAC_CYCLE = getCurrentAiracCycle();
-const CACHE_VERSION = 'v7';
+const CACHE_VERSION = 'v10-20260606';
 
 // 캐시 이름 정의
 const CACHES = {
@@ -49,6 +50,7 @@ const STATIC_ASSETS = [
 ];
 
 // 온디맨드 로딩 3D 모델 (요청 시 캐시)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Reserved for future on-demand 3D model caching.
 const ON_DEMAND_3D_MODELS = [
   '/A380.glb',      // 51MB - 온디맨드
   '/b737.glb',      // 19MB - 온디맨드
@@ -64,6 +66,7 @@ const AVIATION_DATA_FILES = [
 ];
 
 // API 캐시 TTL (초)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Reserved for future TTL-based cache invalidation policy.
 const API_CACHE_TTL = {
   weather: 60,        // 기상 데이터: 1분
   notam: 600,         // NOTAM: 10분
@@ -75,25 +78,25 @@ const API_CACHE_TTL = {
  * Install - 초기 캐시 설정
  */
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing Service Worker');
+  console.info('[SW] Installing Service Worker');
 
   event.waitUntil(
     Promise.all([
       // App Shell 캐시
       caches.open(CACHES.appShell).then((cache) => {
-        console.log('[SW] Caching App Shell');
+        console.info('[SW] Caching App Shell');
         return cache.addAll(APP_SHELL_FILES);
       }),
       // 정적 자산 캐시 (실패해도 진행)
       caches.open(CACHES.static).then((cache) => {
-        console.log('[SW] Caching Static Assets');
+        console.info('[SW] Caching Static Assets');
         return Promise.allSettled(
           STATIC_ASSETS.map((asset) => cache.add(asset).catch(() => null))
         );
       }),
       // 항공 데이터 캐시
       caches.open(CACHES.aviation).then((cache) => {
-        console.log('[SW] Caching Aviation Data (AIRAC:', AIRAC_CYCLE, ')');
+        console.info('[SW] Caching Aviation Data (AIRAC:', AIRAC_CYCLE, ')');
         return Promise.allSettled(
           AVIATION_DATA_FILES.map((file) => cache.add(file).catch(() => null))
         );
@@ -106,7 +109,7 @@ self.addEventListener('install', (event) => {
  * Activate - 오래된 캐시 정리
  */
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating Service Worker');
+  console.info('[SW] Activating Service Worker');
 
   const currentCaches = Object.values(CACHES);
 
@@ -116,7 +119,7 @@ self.addEventListener('activate', (event) => {
         cacheNames
           .filter((name) => !currentCaches.includes(name))
           .map((name) => {
-            console.log('[SW] Deleting old cache:', name);
+            console.info('[SW] Deleting old cache:', name);
             return caches.delete(name);
           })
       );
@@ -167,45 +170,17 @@ self.addEventListener('fetch', (event) => {
  * API 요청 처리 - Network First with Cache Fallback
  */
 async function handleApiRequest(request, url) {
-  // 실시간 항공기 데이터는 항상 네트워크
-  if (url.pathname.includes('/aircraft')) {
-    try {
-      return await fetch(request);
-    } catch {
-      return new Response(JSON.stringify({ error: 'Offline', data: [] }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  try {
+    return await fetch(request, { cache: 'no-store' });
+  } catch {
+    const payload = url.pathname.includes('/aircraft')
+      ? { error: 'Offline', ac: [] }
+      : { error: 'Offline' };
+    return new Response(JSON.stringify(payload), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
-
-  // 기타 API: Stale-While-Revalidate
-  const cache = await caches.open(CACHES.api);
-  const cached = await cache.match(request);
-
-  const fetchPromise = fetch(request).then((response) => {
-    if (response.ok) {
-      cache.put(request, response.clone());
-    }
-    return response;
-  }).catch(() => null);
-
-  // 캐시가 있으면 바로 반환하고 백그라운드에서 업데이트
-  if (cached) {
-    fetchPromise; // 백그라운드 업데이트
-    return cached;
-  }
-
-  // 캐시 없으면 네트워크 대기
-  const networkResponse = await fetchPromise;
-  if (networkResponse) {
-    return networkResponse;
-  }
-
-  // 오프라인 폴백
-  return new Response(JSON.stringify({ error: 'Offline' }), {
-    status: 503,
-    headers: { 'Content-Type': 'application/json' },
-  });
 }
 
 /**
@@ -317,4 +292,4 @@ async function clearAllCaches() {
   return Promise.all(keys.map((key) => caches.delete(key)));
 }
 
-console.log('[SW] Service Worker loaded (AIRAC cycle:', AIRAC_CYCLE, ')');
+console.info('[SW] Service Worker loaded (AIRAC cycle:', AIRAC_CYCLE, ')');
