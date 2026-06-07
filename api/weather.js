@@ -53,7 +53,33 @@ async function fetchJson(url) {
   }
 }
 
-function fallbackFor(type) {
+function normalizeStation(value) {
+  return String(value || 'RKPU').replace(/[^A-Za-z0-9,]/g, '').toUpperCase() || 'RKPU';
+}
+
+function fallbackFor(type, station = 'RKPU') {
+  const primaryStation = normalizeStation(station).split(',')[0] || 'RKPU';
+  const now = new Date().toISOString();
+
+  if (type === 'metar' || type === 'amos') {
+    return FALLBACK_WEATHER.metar.map((item) => ({
+      ...item,
+      icaoId: primaryStation,
+      reportTime: now,
+      source: 'local-fallback'
+    }));
+  }
+
+  if (type === 'taf') {
+    return FALLBACK_WEATHER.taf.map((item) => ({
+      ...item,
+      icaoId: primaryStation,
+      issueTime: now,
+      validTimeFrom: now,
+      source: 'local-fallback'
+    }));
+  }
+
   return FALLBACK_WEATHER[type] ?? { ok: false, message: 'Unsupported weather type' };
 }
 
@@ -63,10 +89,10 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   const type = String(req.query.type || 'metar').toLowerCase();
-  const station = String(req.query.station || req.query.ids || 'RKPU').toUpperCase();
+  const station = normalizeStation(req.query.station || req.query.icao || req.query.ids || 'RKPU');
 
   try {
-    if (type === 'metar') {
+    if (type === 'metar' || type === 'amos') {
       const data = await fetchJson(`${AVIATION_WEATHER_BASE}/metar?ids=${encodeURIComponent(station)}&format=json`);
       return res.status(200).json(Array.isArray(data) ? data : []);
     }
@@ -84,6 +110,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Unsupported weather type: ${type}` });
   } catch (error) {
     console.error(`[weather] ${type} upstream failed:`, error.message);
-    return res.status(200).json(fallbackFor(type));
+    return res.status(200).json(fallbackFor(type, station));
   }
 }
